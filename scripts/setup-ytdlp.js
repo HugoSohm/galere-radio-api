@@ -8,32 +8,37 @@ const url = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${filenam
 const filePath = path.join(__dirname, '..', filename);
 
 console.log(`Downloading yt-dlp for ${process.platform}...`);
-console.log(`From: ${url}`);
-console.log(`To: ${filePath}`);
 
-const file = fs.createWriteStream(filePath);
-
-https.get(url, (response) => {
-    if (response.statusCode === 302 || response.statusCode === 301) {
-        https.get(response.headers.location, (redirectResponse) => {
-            redirectResponse.pipe(file);
-        });
-    } else {
-        response.pipe(file);
-    }
-
-    file.on('finish', () => {
-        file.close();
-        console.log('Download completed!');
-
-        if (!isWindows) {
-            fs.chmodSync(filePath, '755');
-            console.log('Set executable permissions.');
+function downloadFile(downloadUrl, targetPath) {
+    https.get(downloadUrl, (res) => {
+        if (res.statusCode === 301 || res.statusCode === 302) {
+            return downloadFile(res.headers.location, targetPath);
         }
-        process.exit(0);
+
+        if (res.statusCode !== 200) {
+            console.error(`Error: Server responded with ${res.statusCode}`);
+            process.exit(1);
+        }
+
+        const fileStream = fs.createWriteStream(targetPath);
+        res.pipe(fileStream);
+
+        fileStream.on('finish', () => {
+            fileStream.close();
+            console.log('Download completed successfully!');
+
+            if (!isWindows) {
+                fs.chmodSync(targetPath, '755');
+                console.log('Set executable permissions.');
+            }
+            process.exit(0);
+        });
+
+    }).on('error', (err) => {
+        console.error(`Network error: ${err.message}`);
+        if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath);
+        process.exit(1);
     });
-}).on('error', (err) => {
-    fs.unlink(filePath, () => { });
-    console.error(`Error: ${err.message}`);
-    process.exit(1);
-});
+}
+
+downloadFile(url, filePath);
