@@ -128,6 +128,28 @@ const getSpotifyTrackInfo = async (trackId: string): Promise<TrackMetadata> => {
     };
 };
 
+const getDeezerTrackInfo = async (trackId: string): Promise<TrackMetadata> => {
+    const response = await fetch(`https://api.deezer.com/track/${trackId}`);
+
+    if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Failed to fetch Deezer track: ${error}`);
+    }
+
+    const track: any = await response.json();
+    if (track.error) {
+        throw new Error(`Deezer API error: ${track.error.message}`);
+    }
+
+    return {
+        title: track.title,
+        artists: [track.artist.name],
+        coverUrl: track.album.cover_xl || track.album.cover_big || track.album.cover_medium || '',
+        source: SourceType.DEEZER,
+        _raw: track
+    };
+};
+
 const validateCookies = (cookies: any[]): boolean => {
     if (!Array.isArray(cookies)) return false;
     return cookies.every(cookie =>
@@ -225,16 +247,35 @@ export const getTrackInfo = async (url: string, cookies?: any[]): Promise<TrackM
         const trackId = trackIdMatch[1];
         console.log(`[Spotify] Fetching metadata for track ID: ${trackId}`);
         return await getSpotifyTrackInfo(trackId);
-    } else if (url.includes('deezer.com')) {
-        console.log(`[Deezer] Fetching metadata with yt-dlp`);
-        const info = await executeYtDlp(url);
-        return {
-            title: info.track || info.title,
-            artists: info.artist ? [info.artist] : [],
-            coverUrl: info.thumbnail || '',
-            source: SourceType.DEEZER,
-            _raw: info
-        };
+    } else if (url.includes('deezer.com') || url.includes('deezer.page.link')) {
+        let targetUrl = url;
+        // Follow redirects for known share domains OR if no track ID is found in the entry URL
+        if (url.includes('deezer.page.link') || url.includes('link.deezer.com') || !url.includes('/track/')) {
+            console.log(`[Deezer] Following redirect for: ${url}`);
+            try {
+                const response = await fetch(url, { redirect: 'follow' });
+                targetUrl = response.url;
+                console.log(`[Deezer] Redirected to: ${targetUrl}`);
+            } catch (e) {
+                console.warn(`[Deezer] Redirect failed: ${e}. Proceeding with original URL.`);
+            }
+        }
+
+        const trackIdMatch = targetUrl.match(/track\/([0-9]+)/);
+        if (!trackIdMatch) {
+            console.log(`[Deezer] No track ID found in URL (${targetUrl}), falling back to yt-dlp`);
+            const info = await executeYtDlp(targetUrl);
+            return {
+                title: info.track || info.title,
+                artists: info.artist ? [info.artist] : [],
+                coverUrl: info.thumbnail || '',
+                source: SourceType.DEEZER,
+                _raw: info
+            };
+        }
+        const trackId = trackIdMatch[1];
+        console.log(`[Deezer] Fetching metadata for track ID: ${trackId}`);
+        return await getDeezerTrackInfo(trackId);
     } else if (url.includes('music.apple.com')) {
         console.log(`[Apple Music] Fetching metadata with yt-dlp`);
         const info = await executeYtDlp(url);
