@@ -4,8 +4,8 @@ import { downloadMedia, getTrackInfo } from "../utils/downloader";
 interface DownloadQuery {
     url?: string;
     title?: string;
-    artists?: string; // Comma separated for query
-    cookies?: string; // JSON string of cookies array
+    artists?: string;
+    cookies?: string;
 }
 
 export default async function downloadRoutes(app: FastifyInstance) {
@@ -36,7 +36,6 @@ export default async function downloadRoutes(app: FastifyInstance) {
             return reply.status(400).send({ error: "Missing 'url' query parameter" });
         }
 
-        // Handle artists strictly
         let parsedArtists: string[] = [];
         if (request.query.artists) {
             parsedArtists = request.query.artists.split(',').map(s => s.trim());
@@ -59,8 +58,8 @@ export default async function downloadRoutes(app: FastifyInstance) {
             });
             return reply.send({
                 success: true,
-                message: "Download completed",
-                data: result
+                mp3Path: result.mp3Path,
+                coverPath: result.coverPath
             });
         } catch (error: any) {
             request.log.error(error);
