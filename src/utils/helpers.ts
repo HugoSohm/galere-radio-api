@@ -19,7 +19,7 @@ export const getSourceFromUrl = (url: string): SourceType | null => {
 };
 
 export const sanitizeFilename = (str: string): string => {
-    return str.replace(/[^a-z0-9\u00C0-\u024F\s-]/gi, '').trim();
+    return str.replace(/[^a-z0-9\u00C0-\u024F\s,-]/gi, '').trim();
 };
 
 export const parseArtistsTitle = (fullTitle: string, uploaderName: string): { title: string, artists: string[] } => {
