@@ -113,7 +113,7 @@ const getDeezerTrackInfo = async (trackId: string): Promise<TrackMetadata> => {
 };
 
 const executeYtDlp = async (url: string, cookies?: any[], extraArgs: string[] = []): Promise<any> => {
-    const args = ['--dump-json', '--no-playlist', ...extraArgs];
+    const args = ['--dump-json', '--no-playlist', '--js-runtimes', 'node', ...extraArgs];
 
     if (ffmpegStatic) {
         args.push('--ffmpeg-location', ffmpegStatic);
@@ -255,7 +255,8 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
         const ytdlpArgs = [
             '-f', 'bestaudio',
             '--output', `${tempBasePath}.%(ext)s`,
-            '--no-playlist'
+            '--no-playlist',
+            '--js-runtimes', 'node'
         ];
 
         if (ffmpegStatic) {

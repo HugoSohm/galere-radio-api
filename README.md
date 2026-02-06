@@ -52,10 +52,10 @@ Check if the API is functional.
 Retrieve metadata from a URL without downloading the file.
 
 - **URL**: `/info`
-- **Method**: `GET`
-- **Arguments (Query Params)**:
-  - `url` (**Required**): The media URL (YouTube, SoundCloud).
-  - `cookies` (Optional): A JSON array of cookies to bypass age or region restrictions.
+- **Method**: `POST`
+- **Body**: Supports `application/json`, `multipart/form-data`, and `application/x-www-form-urlencoded`.
+  - `url` (**Required**): The media URL (YouTube, SoundCloud, etc.).
+  - `cookies` (Optional): A JSON array of cookies.
 - **Response**:
   ```json
   {
@@ -69,11 +69,11 @@ Retrieve metadata from a URL without downloading the file.
 Download the media, convert it to MP3, apply metadata, and download the cover art.
 
 - **URL**: `/download`
-- **Method**: `GET`
-- **Arguments (Query Params)**:
+- **Method**: `POST`
+- **Body**: Supports `application/json`, `multipart/form-data`, and `application/x-www-form-urlencoded`.
   - `url` (**Required**): The media URL.
   - `title` (Optional): Custom title to apply to the MP3 file.
-  - `artists` (Optional): List of artists separated by commas (e.g., `Artist 1, Artist 2`).
+  - `artists` (Optional): An array/list of artists (e.g., `["Artist 1", "Artist 2"]` in JSON, or comma-separated in forms).
   - `cookies` (Optional): A JSON array of cookies.
 - **Response**:
   ```json
@@ -95,9 +95,9 @@ Some YouTube videos may require cookies to bypass age or region restrictions.
 3. Click on the extension icon and then on the **Options** (wrench icon).
 4. In the "Choose the format for the cookies" section, select **JSON**.
 5. Go back to the extension main menu and click the **Export** button (arrow pointing out).
-6. The cookies are now in your clipboard. You can paste this JSON array directly into the `cookies` query parameter of the `/info` or `/download` routes.
+6. The cookies are now in your clipboard. You can paste this JSON array directly into the `cookies` field of the request body for `/info` or `/download` routes.
 
-> ⚠️ **IMPORTANT**: Make sure to URL-encode the JSON string if you are calling the API manually via a browser or `curl`.
+> ⚠️ **IMPORTANT**: The API supports JSON body, Form-data and x-www-form-urlencoded. When using tools like Postman, you can use any of these tabs.
 
 ## 🛠️ Technologies Used
 

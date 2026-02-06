@@ -11,6 +11,8 @@
   "author": "HugoSohm",
   "license": "ISC",
   "dependencies": {
+    "@fastify/formbody": "^8.0.2",
+    "@fastify/multipart": "^9.4.0",
     "dotenv": "^17.2.3",
     "fastify": "^5.7.4",
     "ffmpeg-static": "^5.3.0",

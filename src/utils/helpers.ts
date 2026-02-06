@@ -72,3 +72,11 @@ export const writeCookiesFile = (cookies: any[]): string => {
     fs.writeFileSync(tempPath, `# Netscape HTTP Cookie File\n${netscapeCookies}`, 'utf-8');
     return tempPath;
 };
+
+// Helper to get value from potential multipart field or raw body
+export const getBodyFieldValue = (field: any): any => {
+    if (field && typeof field === 'object' && 'value' in field) {
+        return field.value;
+    }
+    return field;
+};
