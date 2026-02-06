@@ -256,13 +256,6 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
     const mp3Path = path.join(targetMp3Dir, `${filenameBase}.mp3`);
     const coverPath = path.join(targetCoverDir, `${filenameBase}.jpg`);
 
-    if (metadata.coverUrl) {
-        try {
-            await downloadImage(metadata.coverUrl, coverPath);
-        } catch (e) {
-            console.error("Failed to download cover:", e);
-        }
-    }
 
     if (metadata.source === SourceType.YOUTUBE) {
         const tempBasePath = path.join(targetMp3Dir, `temp-${Date.now()}`);
@@ -322,11 +315,21 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
         const ytdlpArgs = [
             '-f', 'bestaudio',
             '--output', `${tempBasePath}.%(ext)s`,
-            '--no-playlist'
+            '--no-playlist',
+            '--js-runtimes', 'node'
         ];
 
         if (ffmpegStatic) {
             ytdlpArgs.push('--ffmpeg-location', ffmpegStatic);
+        }
+
+        let cookiesFile: string | null = null;
+        if (cookies && cookies.length > 0) {
+            if (!validateCookies(cookies)) {
+                throw new Error('Invalid cookie format. Each cookie must have at least "name" and "value" properties.');
+            }
+            cookiesFile = writeCookiesFile(cookies);
+            ytdlpArgs.push('--cookies', cookiesFile);
         }
 
         try {
@@ -352,8 +355,12 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
                 fs.unlinkSync(tempAudioPath);
             }
         } catch (e) {
-            console.error("Spotify search/download failed:", e);
+            console.error(`${metadata.source} search/download failed:`, e);
             throw e;
+        } finally {
+            if (cookiesFile && fs.existsSync(cookiesFile)) {
+                fs.unlinkSync(cookiesFile);
+            }
         }
     } else {
         const audioStream = await scdl.download(url);
@@ -366,6 +373,14 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
                 .on('end', () => resolve())
                 .on('error', (err) => reject(err));
         });
+    }
+
+    if (metadata.coverUrl) {
+        try {
+            await downloadImage(metadata.coverUrl, coverPath);
+        } catch (e) {
+            console.error("Failed to download cover:", e);
+        }
     }
 
     return {
