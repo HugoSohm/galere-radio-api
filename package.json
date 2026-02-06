@@ -6,7 +6,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "postinstall": "node scripts/setup-ytdlp.js"
+    "postinstall": "node scripts/setup-ytdlp.js",
+    "deploy": "./deploy.sh"
   },
   "author": "HugoSohm",
   "license": "ISC",

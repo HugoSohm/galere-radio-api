@@ -52,6 +52,26 @@ npm run build
 npm start
 ```
 
+## 🚀 Deployment
+
+A `deploy.sh` script is available in the root directory to automate deployment on the VPS server.
+
+### Using the Deployment Script
+
+1. Make the script executable (only needed once):
+   ```bash
+   chmod +x deploy.sh
+   ```
+2. Run the deployment:
+   ```bash
+   ./deploy.sh
+   # OR
+   npm run deploy
+   ```
+
+> [!IMPORTANT]
+> **VPS Configuration**: The `pm2 restart 11` command inside the script is specific to the process ID on the current VPS server. If you install this project on another server, you will likely need to update this ID in `deploy.sh`.
+
 ## 🛣️ API Routes
 
 ### Health Check
