@@ -5,7 +5,7 @@ import { DownloadBody } from "../types/download";
 
 export default async function downloadRoutes(app: FastifyInstance) {
     app.post("/download", { schema: downloadSchema }, async (request: FastifyRequest<{ Body: DownloadBody }>, reply: FastifyReply) => {
-        const { url, title, artists, cookies: cookiesRaw } = request.body;
+        const { url, title, artists, cookies: cookiesRaw, mp3SubPath, coverSubPath } = request.body;
 
         try {
             let cookies: any[] | undefined;
@@ -26,7 +26,7 @@ export default async function downloadRoutes(app: FastifyInstance) {
             const result = await downloadMedia(url, cookies, {
                 title: title,
                 artists: parsedArtists && parsedArtists.length > 0 ? parsedArtists : undefined
-            });
+            }, mp3SubPath, coverSubPath);
             return reply.send({
                 success: true,
                 mp3Path: result.mp3Path,

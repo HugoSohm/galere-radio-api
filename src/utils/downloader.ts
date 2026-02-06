@@ -232,13 +232,16 @@ export const getTrackInfo = async (url: string, cookies?: any[]): Promise<TrackM
     }
 };
 
-export const downloadMedia = async (url: string, cookies?: any[], overrides?: { title?: string, artists?: string[] }): Promise<DownloadResult> => {
-    if (!fs.existsSync(MP3_DIR)) {
-        throw new Error(`MP3 download directory not found: ${MP3_DIR}. Please create it manually.`);
+export const downloadMedia = async (url: string, cookies?: any[], overrides?: { title?: string, artists?: string[] }, mp3SubPath?: string, coverSubPath?: string): Promise<DownloadResult> => {
+    const targetMp3Dir = mp3SubPath ? path.join(MP3_DIR, mp3SubPath) : MP3_DIR;
+    const targetCoverDir = coverSubPath ? path.join(COVER_DIR, coverSubPath) : COVER_DIR;
+
+    if (!fs.existsSync(targetMp3Dir)) {
+        throw new Error(`MP3 download directory not found: ${targetMp3Dir}. Please create it manually.`);
     }
 
-    if (!fs.existsSync(COVER_DIR)) {
-        throw new Error(`Cover download directory not found: ${COVER_DIR}. Please create it manually.`);
+    if (!fs.existsSync(targetCoverDir)) {
+        throw new Error(`Cover download directory not found: ${targetCoverDir}. Please create it manually.`);
     }
 
     const metadata = await getTrackInfo(url, cookies);
@@ -250,8 +253,8 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
 
     const artistString = metadata.artists.join(', ');
     const filenameBase = sanitizeFilename(`${metadata.title}-${artistString}`);
-    const mp3Path = path.join(MP3_DIR, `${filenameBase}.mp3`);
-    const coverPath = path.join(COVER_DIR, `${filenameBase}.jpg`);
+    const mp3Path = path.join(targetMp3Dir, `${filenameBase}.mp3`);
+    const coverPath = path.join(targetCoverDir, `${filenameBase}.jpg`);
 
     if (metadata.coverUrl) {
         try {
@@ -262,7 +265,7 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
     }
 
     if (metadata.source === SourceType.YOUTUBE) {
-        const tempBasePath = path.join(MP3_DIR, `temp-${Date.now()}`);
+        const tempBasePath = path.join(targetMp3Dir, `temp-${Date.now()}`);
         const ytdlpArgs = [
             '-f', 'bestaudio',
             '--output', `${tempBasePath}.%(ext)s`,
@@ -286,11 +289,11 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
         try {
             await execFileAsync(YTDLP_PATH, [...ytdlpArgs, url]);
 
-            const files = fs.readdirSync(MP3_DIR).filter(f => f.startsWith(`temp-`) && f.includes(tempBasePath.split(path.sep).pop()!));
+            const files = fs.readdirSync(targetMp3Dir).filter(f => f.startsWith(`temp-`) && f.includes(tempBasePath.split(path.sep).pop()!));
             if (files.length === 0) {
                 throw new Error('Downloaded audio file not found');
             }
-            const tempAudioPath = path.join(MP3_DIR, files[0]);
+            const tempAudioPath = path.join(targetMp3Dir, files[0]);
 
             await new Promise<void>((resolve, reject) => {
                 ffmpeg(tempAudioPath)
@@ -315,7 +318,7 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
         console.log(`[Search] Searching YouTube for: ${query} (${metadata.source})`);
         const searchUrl = `ytsearch1:${query}`;
 
-        const tempBasePath = path.join(MP3_DIR, `temp-${Date.now()}`);
+        const tempBasePath = path.join(targetMp3Dir, `temp-${Date.now()}`);
         const ytdlpArgs = [
             '-f', 'bestaudio',
             '--output', `${tempBasePath}.%(ext)s`,
@@ -329,11 +332,11 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
         try {
             await execFileAsync(YTDLP_PATH, [...ytdlpArgs, searchUrl]);
 
-            const files = fs.readdirSync(MP3_DIR).filter(f => f.startsWith(`temp-`) && f.includes(tempBasePath.split(path.sep).pop()!));
+            const files = fs.readdirSync(targetMp3Dir).filter(f => f.startsWith(`temp-`) && f.includes(tempBasePath.split(path.sep).pop()!));
             if (files.length === 0) {
                 throw new Error('Search result download failed');
             }
-            const tempAudioPath = path.join(MP3_DIR, files[0]);
+            const tempAudioPath = path.join(targetMp3Dir, files[0]);
 
             await new Promise<void>((resolve, reject) => {
                 ffmpeg(tempAudioPath)

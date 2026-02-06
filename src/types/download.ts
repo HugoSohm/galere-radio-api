@@ -8,4 +8,6 @@ export interface DownloadBody {
     title?: string;
     artists?: string[] | string;
     cookies?: any[] | string;
+    mp3SubPath?: string;
+    coverSubPath?: string;
 }

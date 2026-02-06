@@ -91,6 +91,8 @@ Download the media, convert it to MP3, apply metadata, and download the cover ar
   - `title` (Optional): Custom title to apply to the MP3 file.
   - `artists` (Optional): An array/list of artists (e.g., `["Artist 1", "Artist 2"]` in JSON, or comma-separated in forms).
   - `cookies` (Optional): A JSON array of cookies.
+  - `mp3SubPath` (Optional): A relative path to a subdirectory within the MP3 download folder.
+  - `coverSubPath` (Optional): A relative path to a subdirectory within the cover download folder.
 - **Response**:
   ```json
   {
@@ -99,6 +101,9 @@ Download the media, convert it to MP3, apply metadata, and download the cover ar
     "coverPath": "cover/filename.jpg"
   }
   ```
+
+> [!IMPORTANT]
+> **Subdirectory Validation**: If you use `mp3SubPath` or `coverSubPath`, the corresponding subdirectories must already exist inside their respective base directories (`MP3_DOWNLOAD_DIR` or `COVER_DOWNLOAD_DIR`). The server will not create them for you.
 
 ## 🔓 Bypassing YouTube Restrictions
 
