@@ -7,6 +7,13 @@
     "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
-  }
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "soundcloud-downloader": [
+        "src/types/soundcloud-downloader.d.ts"
+      ]
+    }
+  },
+  "exclude": []
 }
