@@ -4,8 +4,8 @@ services:
     ports:
       - "${PORT:-3000}:${PORT:-3000}"
     volumes:
-      - ./mp3:/app/mp3
-      - ./cover:/app/cover
+      - ${MP3_DOWNLOAD_DIR:-./mp3}:/app/mp3
+      - ${COVER_DOWNLOAD_DIR:-./cover}:/app/cover
     environment:
       - PORT=${PORT:-3000}
       - MP3_DOWNLOAD_DIR=/app/mp3

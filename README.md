@@ -60,8 +60,8 @@ If you prefer to run the project directly on your machine:
 | `PORT` | The port the server will listen on | `3000` |
 | `API_KEY` | Secret key required in `X-API-Key` header | - |
 | `REDIS_URL` | URL for the Redis instance | `redis://localhost:6379` |
-| `MP3_DOWNLOAD_DIR` | Directory where MP3 files will be stored | `mp3` |
-| `COVER_DOWNLOAD_DIR` | Directory where cover images will be stored | `covers` |
+| `MP3_DOWNLOAD_DIR` | Directory where MP3 files will be stored | `/mp3` |
+| `COVER_DOWNLOAD_DIR` | Directory where cover images will be stored | `/cover` |
 | `SPOTIFY_CLIENT_ID` | Your Spotify Application Client ID | - |
 | `SPOTIFY_CLIENT_SECRET` | Your Spotify Application Client Secret | - |
 

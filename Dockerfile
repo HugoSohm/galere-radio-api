@@ -26,12 +26,12 @@ COPY --from=builder /app/scripts ./scripts
 # Setup yt-dlp via postinstall/setup script
 RUN node scripts/setup-ytdlp.js
 
-# Create download directories
+# Create download directories (defaults)
 RUN mkdir -p mp3 cover
 
 ENV PORT=3000
-ENV MP3_DOWNLOAD_DIR=/app/mp3
-ENV COVER_DOWNLOAD_DIR=/app/cover
+ENV MP3_DOWNLOAD_DIR=/mp3
+ENV COVER_DOWNLOAD_DIR=/cover
 
 # EXPOSE ${PORT} 
 # Note: EXPOSE is informational. The port is controlled by the PORT environment variable.
