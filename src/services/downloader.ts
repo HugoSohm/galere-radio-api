@@ -299,7 +299,14 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
         }
     }
 
-    return { mp3Path, coverPath, metadata };
+    const relativeMp3Path = path.relative(MP3_DIR, mp3Path).replace(/\\/g, '/');
+    const relativeCoverPath = path.relative(COVER_DIR, coverPath).replace(/\\/g, '/');
+
+    return {
+        mp3Path: `/mp3/${relativeMp3Path}`,
+        coverPath: `/cover/${relativeCoverPath}`,
+        metadata
+    };
 };
 
 /**

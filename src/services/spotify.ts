@@ -59,7 +59,7 @@ export const getSpotifyTrackInfo = async (trackId: string): Promise<TrackMetadat
 export const searchSpotifyTrack = async (artist: string, title: string): Promise<TrackMetadata | null> => {
     try {
         const token = await getSpotifyAccessToken();
-        const query = encodeURIComponent(`artist=${artist} track=${title}`);
+        const query = encodeURIComponent(`artist:${artist} track:${title}`);
         const response = await fetch(`https://api.spotify.com/v1/search?q=${query}&type=track&limit=1`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
