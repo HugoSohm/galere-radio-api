@@ -141,6 +141,32 @@ Check the status and result of a download.
   }
   ```
 
+### List Files
+Returns a grouped list of MP3s and their associated covers.
+- **URL**: `/files`
+- **Method**: `GET`
+- **Response**:
+  ```json
+  [
+    {
+      "id": "Song-Artist",
+      "mp3": { "name": "Song-Artist.mp3", "path": "/mp3/Song-Artist.mp3" },
+      "cover": { "name": "Song-Artist.jpg", "path": "/cover/Song-Artist.jpg" }
+    }
+  ]
+  ```
+
+### Delete Files
+Deletes files based on query parameters.
+- **URL**: `/files`
+- **Method**: `DELETE`
+- **Query Params**:
+    - **Paired deletion**: `?id=filename_without_ext` (Deletes both MP3 and associated cover)
+    - **Specific deletion**: `?type=mp3|cover&filename=full_filename` (Deletes a single file)
+- **Examples**:
+    - `DELETE /files?id=Song-Artist`
+    - `DELETE /files?type=mp3&filename=Song-Artist.mp3`
+
 ## 🛠️ Technologies Used
 
 - [Fastify](https://www.fastify.io/) - Web framework
