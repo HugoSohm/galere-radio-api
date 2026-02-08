@@ -165,8 +165,8 @@ Check the status and result of a download.
     "status": "completed",
     "progress": 100,
     "result": {
-      "mp3Path": "/app/mp3/Song.mp3",
-      "coverPath": "/app/cover/Song.jpg",
+      "audioPath": "/mp3/Song.mp3",
+      "coverPath": "/cover/Song.jpg",
       "metadata": {
         "title": "Song Title",
         "artists": ["Artist"],

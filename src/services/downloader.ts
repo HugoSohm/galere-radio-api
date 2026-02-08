@@ -229,7 +229,7 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
 
     const artistString = metadata.artists.join(', ');
     const filenameBase = sanitizeFilename(`${metadata.title}-${artistString}`);
-    const mp3Path = path.join(targetMp3Dir, `${filenameBase}.mp3`);
+    const audioPath = path.join(targetMp3Dir, `${filenameBase}.mp3`);
     const coverPath = path.join(targetCoverDir, `${filenameBase}.jpg`);
 
     const tempBasePath = path.join(targetMp3Dir, `temp-${Date.now()}`);
@@ -269,7 +269,7 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
             await new Promise<void>((resolve, reject) => {
                 ffmpeg(tempAudioPath)
                     .audioBitrate(320)
-                    .save(mp3Path)
+                    .save(audioPath)
                     .outputOptions('-metadata', `title=${metadata.title}`, '-metadata', `artist=${artistString}`)
                     .on('end', () => resolve())
                     .on('error', (err) => reject(err));
@@ -284,7 +284,7 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
         await new Promise<void>((resolve, reject) => {
             ffmpeg(audioStream)
                 .audioBitrate(320)
-                .save(mp3Path)
+                .save(audioPath)
                 .outputOptions('-metadata', `title=${metadata.title}`, '-metadata', `artist=${artistString}`)
                 .on('end', () => resolve())
                 .on('error', (err) => reject(err));
@@ -299,11 +299,11 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
         }
     }
 
-    const relativeMp3Path = path.relative(MP3_DIR, mp3Path).replace(/\\/g, '/');
+    const relativeAudioPath = path.relative(MP3_DIR, audioPath).replace(/\\/g, '/');
     const relativeCoverPath = path.relative(COVER_DIR, coverPath).replace(/\\/g, '/');
 
     return {
-        mp3Path: `/mp3/${relativeMp3Path}`,
+        audioPath: `/mp3/${relativeAudioPath}`,
         coverPath: `/cover/${relativeCoverPath}`,
         metadata
     };

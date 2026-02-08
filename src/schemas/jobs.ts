@@ -19,7 +19,7 @@ export const jobStatusSchema = {
                     type: 'object',
                     nullable: true,
                     properties: {
-                        mp3Path: { type: 'string' },
+                        audioPath: { type: 'string' },
                         coverPath: { type: 'string' },
                         metadata: {
                             type: 'object',
