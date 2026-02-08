@@ -6,12 +6,14 @@ import downloadRoutes from "./routes/download";
 import searchRoutes from "./routes/search";
 import jobRoutes from "./routes/jobs";
 import filesRoutes from "./routes/files";
-import { setupWorker, connection } from "./utils/queue";
+import { setupWorker, connection } from './services/queue';
 import formbody from '@fastify/formbody';
 import multipart from '@fastify/multipart';
 import { normalizationHook } from './hooks/normalization';
 import { errorHandler } from './handlers/errorHandler';
 import { authHook } from './handlers/auth';
+import staticPlugin from '@fastify/static';
+import path from 'path';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import pRetry, { AbortError } from 'p-retry';
@@ -52,6 +54,20 @@ app.register(swaggerUi, {
 
 app.addHook('preHandler', authHook);
 app.addHook('preValidation', normalizationHook);
+
+// Serve MP3 files
+app.register(staticPlugin, {
+    root: path.resolve(process.env.MP3_DOWNLOAD_DIR ?? 'mp3'),
+    prefix: '/mp3/',
+    decorateReply: false // Need to disable decoration to allow multiple registrations
+});
+
+// Serve Cover files
+app.register(staticPlugin, {
+    root: path.resolve(process.env.COVER_DOWNLOAD_DIR ?? 'cover'),
+    prefix: '/cover/',
+    decorateReply: false
+});
 
 app.register(healthRoutes);
 app.register(infoRoutes);

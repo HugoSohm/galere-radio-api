@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { searchTracks } from "../utils/downloader";
-import { getBodyFieldValue } from "../utils/helpers";
+import { searchTracks } from "../services/downloader";
+import { getBodyFieldValue } from "../utils/request";
+import { SourceType } from "../types/metadata";
 import { searchSchema } from "../schemas/search";
 
 export default async function searchRoutes(app: FastifyInstance) {

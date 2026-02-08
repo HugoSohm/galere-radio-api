@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { getTrackInfo } from "../utils/downloader";
+import { getTrackInfo } from "../services/downloader";
 import { infoSchema } from "../schemas/download";
-import { InfoBody } from "../types/download";
+import { InfoBody } from "../types/requests";
 
 export default async function infoRoutes(app: FastifyInstance) {
     app.post("/info", { schema: infoSchema }, async (request: FastifyRequest<{ Body: InfoBody }>, reply: FastifyReply) => {

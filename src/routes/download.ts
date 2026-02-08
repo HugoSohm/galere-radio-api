@@ -1,13 +1,14 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { downloadQueue } from "../utils/queue";
+import { downloadQueue } from "../services/queue";
+import { getMediaStream } from "../services/downloader";
 import { downloadSchema, streamSchema } from "../schemas/download";
-import { DownloadBody } from "../types/download";
+import { DownloadBody, StreamBody } from "../types/requests";
 
 export default async function downloadRoutes(app: FastifyInstance) {
     app.post("/download", {
         schema: downloadSchema
     }, async (request: FastifyRequest<{ Body: DownloadBody }>, reply: FastifyReply) => {
-        const { url, title, artists, cookies: cookiesRaw, mp3SubPath, coverSubPath } = request.body;
+        const { tracks, cookies: cookiesRaw, mp3SubPath, coverSubPath } = request.body;
 
         try {
             let cookies: any[] | undefined;
@@ -23,23 +24,29 @@ export default async function downloadRoutes(app: FastifyInstance) {
                 }
             }
 
-            const parsedArtists = Array.isArray(artists) ? artists : undefined;
+            const results = [];
+            for (const track of tracks) {
+                const parsedArtists = Array.isArray(track.artists) ? track.artists :
+                    (typeof track.artists === 'string' ? [track.artists] : undefined);
 
-            const job = await downloadQueue.add('download', {
-                url,
-                cookies,
-                overrides: {
-                    title,
-                    artists: parsedArtists && parsedArtists.length > 0 ? parsedArtists : undefined
-                },
-                mp3SubPath,
-                coverSubPath
-            });
+                const job = await downloadQueue.add('download', {
+                    url: track.url,
+                    cookies,
+                    overrides: {
+                        title: track.title,
+                        artists: parsedArtists && parsedArtists.length > 0 ? parsedArtists : undefined
+                    },
+                    mp3SubPath,
+                    coverSubPath
+                });
+                results.push({ url: track.url, jobId: job.id });
+            }
 
             return reply.status(202).send({
                 success: true,
-                jobId: job.id,
-                message: "Download queued successfully"
+                message: `${tracks.length} download(s) queued successfully`,
+                count: tracks.length,
+                jobs: results
             });
         } catch (error: any) {
             request.log.error(error);
@@ -49,7 +56,7 @@ export default async function downloadRoutes(app: FastifyInstance) {
 
     app.post("/download/stream", {
         schema: streamSchema
-    }, async (request: FastifyRequest<{ Body: DownloadBody }>, reply: FastifyReply) => {
+    }, async (request: FastifyRequest<{ Body: StreamBody }>, reply: FastifyReply) => {
         const { url, title, artists, cookies: cookiesRaw } = request.body;
 
         try {
@@ -68,7 +75,7 @@ export default async function downloadRoutes(app: FastifyInstance) {
 
             const parsedArtists = Array.isArray(artists) ? artists : undefined;
 
-            const { stream, filename } = await require("../utils/downloader").getMediaStream(url, cookies, {
+            const { stream, filename } = await getMediaStream(url, cookies, {
                 title,
                 artists: parsedArtists && parsedArtists.length > 0 ? parsedArtists : undefined
             });

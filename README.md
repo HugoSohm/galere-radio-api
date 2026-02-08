@@ -4,20 +4,21 @@ API for retrieving information, downloading media (queued), and grabbing cover a
 
 ## ✨ Features
 
+- 📥 **Local Async Downloads**: Download MP3 and Cover art to the server via the `/download` endpoint.
+- ⚡ **Direct Streaming**: Download MP3 directly to your browser via the `/download/stream` endpoint.
 - 🔍 **Integrated Search**: Search for tracks directly on YouTube via the `/search` endpoint.
-- 🕒 **Local Async Downloads**: Download MP3 and Cover art to the server's filesystem with background processing.
-- ⚡ **Direct Streaming**: Download MP3 directly to your browser without saving to the server (Proxy mode).
-- 🖼️ **Metadata & Covers**: Automatic extraction of high-res cover art and ID3 tags.
+- 🏷️ **Metadata & Tags**: Extraction of high-res cover art and ID3 tags via the `/info` endpoint.
+- 🎵 **Playlist Support**: Automatically detect and download entire YouTube playlists.
 - 🛡️ **Security**: Protected endpoints with API Key authentication.
 - 🐋 **Docker Ready**: Pre-configured setup with Docker Compose.
 - 📖 **API Docs**: Interactive documentation via Swagger UI.
 
 ## 🌟 Supported Platforms
 
-- 🎥 **YouTube** (via yt-dlp)
+- 🔴 **YouTube** (via yt-dlp)
 - ☁️ **SoundCloud** (via scdl)
-- 🎧 **Spotify** (Metadata & Search)
-- 🎶 **Deezer** (Metadata & Search)
+- 🟢 **Spotify** (Metadata & Search)
+- 🟣 **Deezer** (Metadata & Search)
 - 🍎 **Apple Music** (Metadata & Search)
 
 ## 🚀 Getting Started
@@ -32,7 +33,7 @@ The easiest way to run the API with all its dependencies (including Redis):
    ```bash
    npm run deploy
    ```
-4. **Access**: API at `http://localhost:3000` and Docs at `http://localhost:3000/docs`.
+4. **Access**: API at `http://localhost:${PORT}` and Docs at `http://localhost:${PORT}/docs`.
 
 ---
 
@@ -52,7 +53,7 @@ If you prefer to run the project directly on your machine:
    ```bash
    npm run dev
    ```
-4. **Access**: API at `http://localhost:3000`.
+4. **Access**: API at `http://localhost:${PORT}`.
 
 ## ⚙️ Configuration
 
@@ -65,6 +66,7 @@ If you prefer to run the project directly on your machine:
 | `COVER_DOWNLOAD_DIR` | Directory where cover images will be stored | `/cover` |
 | `SPOTIFY_CLIENT_ID` | Your Spotify Application Client ID | - |
 | `SPOTIFY_CLIENT_SECRET` | Your Spotify Application Client Secret | - |
+| `BASE_URL` | (Optional) Custom base URL for file listing (e.g., https://api.example.com) | `http://localhost:${PORT}` |
 
 ## 🛡️ Authentication
 
@@ -88,32 +90,51 @@ Search for tracks on YouTube.
 - **Body**: `{ "artist": "Daft Punk", "title": "Get Lucky", "cookies": [...], "limit": 5 }` (artist, title, and cookies are optional, but at least artist or title is required)
 
 ### Get Info
-Retrieve metadata for a given URL.
+Retrieve metadata for a given URL (supports single tracks and YouTube playlists).
 - **URL**: `/info`
 - **Method**: `POST`
-- **Body**: `{ "url": "..." }`
+- **Body**: `{ "url": "...", "cookies": [...] }`
+- **Response**: A JSON array of metadata objects.
+  ```json
+  [
+    {
+      "title": "Song Title",
+      "artists": ["Artist"],
+      "coverUrl": "...",
+      "source": "youtube",
+      "url": "..."
+    }
+  ]
+  ```
 
 ### Local Queued Download
-Starts a background download job that saves the MP3 and cover art locally on the server.
+Starts a background download job that saves the MP3 and cover art locally on the server. Supports bulk queuing.
 - **URL**: `/download`
 - **Method**: `POST`
 - **Body**: 
   ```json
   {
-    "url": "https://www.youtube.com/watch?v=...",
-    "title": "Custom Title" (optional),
-    "artists": ["Artist 1", "Artist 2"] (optional),
-    "cookies": [...], (optional, Netscape JSON format),
-    "mp3SubPath": "subdir/...", (optional),
-    "coverSubPath": "subdir/..." (optional)
+    "tracks": [
+      {
+        "url": "https://www.youtube.com/watch?v=...",
+        "title": "Custom Title" (optional),
+        "artists": ["Artist 1"] (optional)
+      }
+    ],
+    "cookies": [...], (optional, global)
+    "mp3SubPath": "subdir/...", (optional, global),
+    "coverSubPath": "subdir/..." (optional, global)
   }
   ```
 - **Response**:
   ```json
   {
     "success": true,
-    "jobId": "7",
-    "message": "Download queued successfully"
+    "message": "1 download(s) queued successfully",
+    "count": 1,
+    "jobs": [
+      { "url": "...", "jobId": "7" }
+    ]
   }
   ```
 
@@ -158,16 +179,26 @@ Check the status and result of a download.
   ```
 
 ### List Files
-Returns a grouped list of MP3s and their associated covers.
+Returns a grouped list of MP3s and their associated covers in a specific directory.
 - **URL**: `/files`
 - **Method**: `GET`
+- **Query Params**:
+    - `subPath`: (Optional) The subdirectory to list. If omitted, lists files in the root download folders. **This listing is not recursive.**
 - **Response**:
   ```json
   [
     {
       "id": "Song-Artist",
-      "mp3": { "name": "Song-Artist.mp3", "path": "/mp3/Song-Artist.mp3" },
-      "cover": { "name": "Song-Artist.jpg", "path": "/cover/Song-Artist.jpg" }
+      "mp3": { 
+        "name": "Song-Artist.mp3", 
+        "path": "/mp3/Song-Artist.mp3",
+        "url": "http://localhost:${PORT}/mp3/Song-Artist.mp3"
+      },
+      "cover": { 
+        "name": "Song-Artist.jpg", 
+        "path": "/cover/Song-Artist.jpg",
+        "url": "http://localhost:${PORT}/cover/Song-Artist.jpg"
+      }
     }
   ]
   ```
@@ -177,10 +208,12 @@ Deletes files based on query parameters.
 - **URL**: `/files`
 - **Method**: `DELETE`
 - **Query Params**:
-    - **Paired deletion**: `?id=filename_without_ext` (Deletes both MP3 and associated cover)
-    - **Specific deletion**: `?type=mp3|cover&filename=full_filename` (Deletes a single file)
+    - **Paired deletion**: `?id=filename_without_ext&subPath=subdir` (Deletes both MP3 and associated cover)
+    - **Specific deletion**: `?type=mp3|cover&filename=full_filename&subPath=subdir` (Deletes a single file)
+    - `subPath`: (Optional) The subdirectory where the files are located.
 - **Examples**:
-    - `DELETE /files?id=Song-Artist`
+    - `DELETE /files?id=Song-Artist` (Root directory)
+    - `DELETE /files?id=Song-Artist&subPath=my-album` (Subdirectory)
     - `DELETE /files?type=mp3&filename=Song-Artist.mp3`
 
 ## 🛠️ Technologies Used

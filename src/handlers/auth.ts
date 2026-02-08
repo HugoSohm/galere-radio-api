@@ -1,7 +1,10 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 
 export const authHook = async (request: FastifyRequest, reply: FastifyReply) => {
-    const publicPaths = ['/health', '/docs', '/docs/uiConfig', '/docs/initOAuth', '/docs/json', '/docs/yaml'];
+    const publicPaths = [
+        '/health', '/docs', '/docs/uiConfig', '/docs/initOAuth', '/docs/json', '/docs/yaml',
+        '/mp3', '/cover'
+    ];
     if (publicPaths.some(path => request.url.startsWith(path))) {
         return;
     }

@@ -9,6 +9,9 @@ export const connection = new IORedis(REDIS_URL, {
 
 export const downloadQueue = new Queue('downloads', { connection });
 
+/**
+ * Initializes the worker process for the download queue.
+ */
 export const setupWorker = () => {
     const worker = new Worker('downloads', async (job: Job) => {
         const { url, cookies, overrides, mp3SubPath, coverSubPath } = job.data;

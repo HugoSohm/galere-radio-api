@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { downloadQueue } from "../utils/queue";
+import { downloadQueue } from "../services/queue";
 import { jobStatusSchema } from "../schemas/jobs";
 
 export default async function jobRoutes(app: FastifyInstance) {

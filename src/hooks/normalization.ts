@@ -1,5 +1,5 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { getBodyFieldValue } from "../utils/helpers";
+import { getBodyFieldValue } from "../utils/request";
 
 export const normalizationHook = async (request: FastifyRequest) => {
     if (request.body === undefined || request.body === null) {
