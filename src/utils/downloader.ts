@@ -228,15 +228,13 @@ export const getTrackInfo = async (url: string, cookies?: any[]): Promise<TrackM
                 throw new Error('Invalid cookie format.');
             }
 
-            console.log(`[YouTube] Fetching info: ${url}`);
             const info = await executeYtDlp(url, cookies);
             const { title: parsedTitle, artists: parsedArtists } = parseArtistsTitle(info.title || 'Unknown Title', info.uploader || 'Unknown Artist');
 
-            // Try Spotify lookup for cleaner metadata
             const spotifyInfo = await searchSpotifyTrack(parsedArtists[0], parsedTitle);
             if (spotifyInfo) {
                 console.log(`[Spotify] Found match for YouTube track: ${spotifyInfo.artists.join(', ')} - ${spotifyInfo.title}`);
-                return { ...spotifyInfo, source: SourceType.YOUTUBE }; // Keep source as YouTube for downstream
+                return { ...spotifyInfo, source: SourceType.YOUTUBE };
             }
 
             const coverUrl = info.thumbnail || info.thumbnails?.[info.thumbnails.length - 1]?.url || '';
