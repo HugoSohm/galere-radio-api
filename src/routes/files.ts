@@ -7,33 +7,39 @@ const MP3_DIR = path.resolve(process.env.MP3_DOWNLOAD_DIR ?? 'mp3');
 const COVER_DIR = path.resolve(process.env.COVER_DOWNLOAD_DIR ?? 'cover');
 
 export default async function filesRoutes(fastify: FastifyInstance, options: FastifyPluginOptions) {
-    fastify.get<{ Querystring: { subPath?: string } }>("/files", async (request, reply) => {
-        const { subPath } = request.query;
+    fastify.get<{ Querystring: { subPath?: string, audioSubPath?: string, coverSubPath?: string } }>("/files", async (request, reply) => {
+        const { subPath, audioSubPath, coverSubPath } = request.query;
 
-        if (subPath && (subPath.includes("..") || subPath.startsWith("/") || subPath.startsWith("\\"))) {
+        const checkValue = (val?: string) => val && (val.includes("..") || val.startsWith("/") || val.startsWith("\\"));
+        if (checkValue(subPath) || checkValue(audioSubPath) || checkValue(coverSubPath)) {
             return reply.status(400).send({ error: "Invalid subPath" });
         }
 
-        const targetSubPath = subPath || "";
-        const mp3Files = getFiles(path.join(MP3_DIR, targetSubPath), subPath);
-        const coverFiles = getFiles(path.join(COVER_DIR, targetSubPath), subPath);
+        const targetAudioSubPath = audioSubPath || subPath || "";
+        const targetCoverSubPath = coverSubPath || subPath || "";
 
-        const fileMap = new Map<string, { id: string, mp3?: any, cover?: any }>();
+        const audioExtensions = [".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac"];
+        const audioFiles = getFiles(path.join(MP3_DIR, targetAudioSubPath), targetAudioSubPath);
+        const coverFiles = getFiles(path.join(COVER_DIR, targetCoverSubPath), targetCoverSubPath);
+
+        const fileMap = new Map<string, { id: string, audio?: any, cover?: any }>();
         const PORT = process.env.PORT || 3000;
         const rawBaseUrl = process.env.BASE_URL || `${request.protocol}://${request.hostname}:${PORT}`;
         const baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
 
-        for (const fileObj of mp3Files) {
+        for (const fileObj of audioFiles) {
             const { name: file, relativePath } = fileObj;
-            if (file.endsWith(".mp3")) {
-                const parsed = path.parse(relativePath);
+            const parsed = path.parse(relativePath);
+            const ext = parsed.ext.toLowerCase();
+
+            if (audioExtensions.includes(ext)) {
                 const id = parsed.name;
-                const mapKey = relativePath.replace(".mp3", "");
+                const mapKey = id; // Use base filename as key to pair with covers from other folders
                 const webPath = `/mp3/${relativePath.replace(/\\/g, '/')}`;
 
                 fileMap.set(mapKey, {
                     id,
-                    mp3: {
+                    audio: {
                         name: file,
                         path: webPath,
                         url: `${baseUrl}${webPath}`
@@ -47,7 +53,7 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
             const parsed = path.parse(relativePath);
             const id = parsed.name;
             const ext = parsed.ext.toLowerCase();
-            const mapKey = relativePath.replace(ext, "");
+            const mapKey = id;
             const webPath = `/cover/${relativePath.replace(/\\/g, '/')}`;
 
             if ([".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(ext)) {
@@ -65,14 +71,14 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
     });
 
     // DELETE /files - Delete based on query parameters
-    fastify.delete<{ Querystring: { id?: string, type?: string, filename?: string, subPath?: string } }>("/files", async (request, reply) => {
-        const { id, type, filename, subPath } = request.query;
+    fastify.delete<{ Querystring: { id?: string, type?: string, filename?: string, subPath?: string, audioSubPath?: string, coverSubPath?: string } }>("/files", async (request, reply) => {
+        const { id, type, filename, subPath, audioSubPath, coverSubPath } = request.query;
 
-        // Security check for id, filename, or subPath
+        // Security check for id, filename, or subPaths
         const targetName = id || filename;
         const checkValue = (val?: string) => val && (val.includes("..") || val.startsWith("/") || val.startsWith("\\"));
 
-        if (checkValue(targetName) || checkValue(subPath)) {
+        if (checkValue(targetName) || checkValue(subPath) || checkValue(audioSubPath) || checkValue(coverSubPath)) {
             return reply.status(400).send({ error: "Invalid ID, filename or subPath" });
         }
 
@@ -81,28 +87,37 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
             const deleted = [];
             const errors = [];
 
-            const targetSubPath = subPath || "";
+            const targetAudioSubPath = audioSubPath || subPath || "";
+            const targetCoverSubPath = coverSubPath || subPath || "";
 
-            // Try delete MP3
-            const mp3Path = path.join(MP3_DIR, targetSubPath, `${id}.mp3`);
-            if (fs.existsSync(mp3Path)) {
-                try {
-                    fs.unlinkSync(mp3Path);
-                    deleted.push(subPath ? path.join(subPath, `${id}.mp3`) : `${id}.mp3`);
-                } catch (err) {
-                    errors.push(`Failed to delete MP3: ${id}.mp3`);
+            // Try delete Audio files (any supported extension)
+            const audioExtensions = [".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac"];
+            const targetAudioDir = path.join(MP3_DIR, targetAudioSubPath);
+            if (fs.existsSync(targetAudioDir)) {
+                const files = fs.readdirSync(targetAudioDir).filter(f => {
+                    const parsed = path.parse(f);
+                    return parsed.name === id && audioExtensions.includes(parsed.ext.toLowerCase());
+                });
+                for (const file of files) {
+                    const filePath = path.join(targetAudioDir, file);
+                    try {
+                        fs.unlinkSync(filePath);
+                        deleted.push(targetAudioSubPath ? path.join(targetAudioSubPath, file) : file);
+                    } catch (err) {
+                        errors.push(`Failed to delete audio: ${file}`);
+                    }
                 }
             }
 
             // Try delete Cover
-            const targetCoverDir = path.join(COVER_DIR, targetSubPath);
+            const targetCoverDir = path.join(COVER_DIR, targetCoverSubPath);
             if (fs.existsSync(targetCoverDir)) {
                 const covers = fs.readdirSync(targetCoverDir).filter(f => path.parse(f).name === id);
                 for (const cover of covers) {
                     const coverPath = path.join(targetCoverDir, cover);
                     try {
                         fs.unlinkSync(coverPath);
-                        deleted.push(subPath ? path.join(subPath, cover) : cover);
+                        deleted.push(targetCoverSubPath ? path.join(targetCoverSubPath, cover) : cover);
                     } catch (err) {
                         errors.push(`Failed to delete cover: ${cover}`);
                     }
@@ -119,22 +134,26 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
         // Case 2: Delete specific file (type + filename + optional subPath)
         if (type && filename) {
             let baseDir: string;
-            if (type === "mp3") {
+            let targetSub: string;
+
+            if (type === "mp3" || type === "audio") {
                 baseDir = MP3_DIR;
+                targetSub = audioSubPath || subPath || "";
             } else if (type === "cover") {
                 baseDir = COVER_DIR;
+                targetSub = coverSubPath || subPath || "";
             } else {
-                return reply.status(400).send({ error: "Invalid type. Must be 'mp3' or 'cover'" });
+                return reply.status(400).send({ error: "Invalid type. Must be 'audio', 'mp3', or 'cover'" });
             }
 
-            const filePath = path.join(baseDir, subPath || "", filename);
+            const filePath = path.join(baseDir, targetSub, filename);
             if (!fs.existsSync(filePath)) {
                 return reply.status(404).send({ error: "File not found" });
             }
 
             try {
                 fs.unlinkSync(filePath);
-                return { success: true, message: `File ${filename} deleted from ${type}${subPath ? ` in ${subPath}` : ""}` };
+                return { success: true, message: `File ${filename} deleted from ${type}${targetSub ? ` in ${targetSub}` : ""}` };
             } catch (err) {
                 fastify.log.error(err);
                 return reply.status(500).send({ error: "Failed to delete file" });

@@ -122,7 +122,7 @@ Starts a background download job that saves the MP3 and cover art locally on the
       }
     ],
     "cookies": [...], (optional, global)
-    "mp3SubPath": "subdir/...", (optional, global),
+    "audioSubPath": "subdir/...", (optional, global),
     "coverSubPath": "subdir/..." (optional, global)
   }
   ```
@@ -179,17 +179,20 @@ Check the status and result of a download.
   ```
 
 ### List Files
-Returns a grouped list of MP3s and their associated covers in a specific directory.
+Returns a grouped list of audio files and their associated covers. While the downloader saves in MP3, the API supports listing and managing multiple formats (MP3, WAV, M4A, OGG, FLAC, AAC).
 - **URL**: `/files`
 - **Method**: `GET`
 - **Query Params**:
-    - `subPath`: (Optional) The subdirectory to list. If omitted, lists files in the root download folders. **This listing is not recursive.**
+    - `audioSubPath`: (Optional) The subdirectory for audio files.
+    - `coverSubPath`: (Optional) The subdirectory for cover files.
+    - `subPath`: (Optional) Fallback for both audio and cover subpaths if not specified.
+    - **Listing is not recursive.**
 - **Response**:
   ```json
   [
     {
       "id": "Song-Artist",
-      "mp3": { 
+      "audio": { 
         "name": "Song-Artist.mp3", 
         "path": "/mp3/Song-Artist.mp3",
         "url": "http://localhost:${PORT}/mp3/Song-Artist.mp3"
@@ -208,9 +211,11 @@ Deletes files based on query parameters.
 - **URL**: `/files`
 - **Method**: `DELETE`
 - **Query Params**:
-    - **Paired deletion**: `?id=filename_without_ext&subPath=subdir` (Deletes both MP3 and associated cover)
-    - **Specific deletion**: `?type=mp3|cover&filename=full_filename&subPath=subdir` (Deletes a single file)
-    - `subPath`: (Optional) The subdirectory where the files are located.
+    - **Paired deletion**: `?id=filename_without_ext&audioSubPath=subdir&coverSubPath=subdir` (Deletes both audio and associated cover across folders)
+    - **Specific deletion**: `?type=audio|mp3|cover&filename=full_filename&subPath=subdir` (Deletes a single file)
+    - `audioSubPath`: (Optional) Audio subdirectory.
+    - `coverSubPath`: (Optional) Cover subdirectory.
+    - `subPath`: (Optional) Fallback subdirectory.
 - **Examples**:
     - `DELETE /files?id=Song-Artist` (Root directory)
     - `DELETE /files?id=Song-Artist&subPath=my-album` (Subdirectory)

@@ -62,7 +62,7 @@ export const downloadSchema = {
                     { type: 'string' }
                 ]
             },
-            mp3SubPath: { type: 'string' },
+            audioSubPath: { type: 'string' },
             coverSubPath: { type: 'string' }
         }
     },

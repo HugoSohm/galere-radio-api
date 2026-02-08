@@ -21,7 +21,7 @@ export interface DownloadTrack {
 export interface DownloadBody {
     tracks: DownloadTrack[];
     cookies?: any[] | string;
-    mp3SubPath?: string;
+    audioSubPath?: string;
     coverSubPath?: string;
 }
 

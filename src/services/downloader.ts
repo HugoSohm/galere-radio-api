@@ -211,8 +211,8 @@ export const getTrackInfo = async (url: string, cookies?: any[]): Promise<TrackM
 /**
  * Downloads media and covers and processes them with FFmpeg.
  */
-export const downloadMedia = async (url: string, cookies?: any[], overrides?: { title?: string, artists?: string[] }, mp3SubPath?: string, coverSubPath?: string): Promise<DownloadResult> => {
-    const targetMp3Dir = mp3SubPath ? path.join(MP3_DIR, mp3SubPath) : MP3_DIR;
+export const downloadMedia = async (url: string, cookies?: any[], overrides?: { title?: string, artists?: string[] }, audioSubPath?: string, coverSubPath?: string): Promise<DownloadResult> => {
+    const targetMp3Dir = audioSubPath ? path.join(MP3_DIR, audioSubPath) : MP3_DIR;
     const targetCoverDir = coverSubPath ? path.join(COVER_DIR, coverSubPath) : COVER_DIR;
 
     if (!fs.existsSync(targetMp3Dir)) fs.mkdirSync(targetMp3Dir, { recursive: true });
