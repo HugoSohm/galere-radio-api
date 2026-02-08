@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
+import { Readable, PassThrough } from 'stream';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegStatic from 'ffmpeg-static';
 import scdl from 'soundcloud-downloader';
@@ -383,4 +384,77 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
     }
 
     return { mp3Path, coverPath, metadata };
+};
+
+export const getMediaStream = async (url: string, cookies?: any[], overrides?: { title?: string, artists?: string[] }) => {
+    const metadata = await getTrackInfo(url, cookies);
+
+    if (overrides) {
+        if (overrides.title) metadata.title = overrides.title;
+        if (overrides.artists && overrides.artists.length > 0) metadata.artists = overrides.artists;
+    }
+
+    const artistString = metadata.artists.join(', ');
+    const filename = sanitizeFilename(`${metadata.title}-${artistString}`) + '.mp3';
+
+    let inputStream: Readable;
+    let downloadUrl = url;
+
+    // Determine download URL for Spotify/Deezer/etc.
+    if ([SourceType.SPOTIFY, SourceType.DEEZER, SourceType.APPLE_MUSIC].includes(metadata.source)) {
+        const query = `${metadata.artists.join(' ')} - ${metadata.title}`;
+        downloadUrl = `ytsearch1:${query}`;
+    }
+
+    if (metadata.source !== SourceType.SOUNDCLOUD) {
+        const ytdlpArgs = [
+            '-f', 'bestaudio',
+            '--output', '-',
+            '--no-playlist',
+            '--js-runtimes', 'node'
+        ];
+
+        if (FFMPEG_STATIC_PATH) ytdlpArgs.push('--ffmpeg-location', FFMPEG_STATIC_PATH);
+
+        let cookiesFile: string | null = null;
+        if (cookies && cookies.length > 0) {
+            cookiesFile = writeCookiesFile(cookies);
+            ytdlpArgs.push('--cookies', cookiesFile);
+        }
+
+        const ytProcess = spawn(YTDLP_PATH, [...ytdlpArgs, downloadUrl]);
+        inputStream = ytProcess.stdout;
+
+        // Clean up cookie file when process ends
+        ytProcess.on('close', () => {
+            if (cookiesFile && fs.existsSync(cookiesFile)) {
+                try { fs.unlinkSync(cookiesFile); } catch (e) { }
+            }
+        });
+    } else {
+        inputStream = await scdl.download(url);
+    }
+
+    const outStream = new PassThrough();
+
+    ffmpeg(inputStream)
+        .audioBitrate(320)
+        .format('mp3')
+        .outputOptions(
+            '-metadata', `title=${metadata.title}`,
+            '-metadata', `artist=${artistString}`,
+            '-id3v2_version', '3',
+            '-write_id3v1', '1'
+        )
+        .on('error', (err) => {
+            console.error('[FFmpeg Stream Error]', err);
+            outStream.destroy(err);
+        })
+        .pipe(outStream);
+
+    return {
+        stream: outStream,
+        filename,
+        metadata
+    };
 };

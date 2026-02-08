@@ -5,8 +5,9 @@ API for retrieving information, downloading media (queued), and grabbing cover a
 ## ✨ Features
 
 - 🔍 **Integrated Search**: Search for tracks directly on YouTube via the `/search` endpoint.
-- 🕒 **Async Downloads**: Background processing via BullMQ with status tracking.
-- 🖼️ **Metadata & Covers**: Automatic extraction of high-res cover art and tags.
+- 🕒 **Local Async Downloads**: Download MP3 and Cover art to the server's filesystem with background processing.
+- ⚡ **Direct Streaming**: Download MP3 directly to your browser without saving to the server (Proxy mode).
+- 🖼️ **Metadata & Covers**: Automatic extraction of high-res cover art and ID3 tags.
 - 🛡️ **Security**: Protected endpoints with API Key authentication.
 - 🐋 **Docker Ready**: Pre-configured setup with Docker Compose.
 - 📖 **API Docs**: Interactive documentation via Swagger UI.
@@ -92,8 +93,8 @@ Retrieve metadata for a given URL.
 - **Method**: `POST`
 - **Body**: `{ "url": "..." }`
 
-### Download (Queued)
-Starts a background download job.
+### Local Queued Download
+Starts a background download job that saves the MP3 and cover art locally on the server.
 - **URL**: `/download`
 - **Method**: `POST`
 - **Body**: 
@@ -115,6 +116,21 @@ Starts a background download job.
     "message": "Download queued successfully"
   }
   ```
+
+### Direct Streaming (Browser)
+Downloads the MP3 file directly to your browser as an attachment. Bypasses server storage and does not download cover art.
+- **URL**: `/download/stream`
+- **Method**: `POST`
+- **Body**: 
+  ```json
+  {
+    "url": "https://www.youtube.com/watch?v=...",
+    "title": "Custom Title" (optional),
+    "artists": ["Artist 1"] (optional),
+    "cookies": [...] (optional)
+  }
+  ```
+- **Response**: Binary stream (audio/mpeg) with `Content-Disposition: attachment`.
 
 ### Job Status
 Check the status and result of a download.

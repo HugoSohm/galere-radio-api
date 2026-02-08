@@ -64,3 +64,34 @@ export const downloadSchema = {
         }
     }
 };
+export const streamSchema = {
+    description: 'Stream a media download directly to the browser',
+    tags: ['download'],
+    body: {
+        type: 'object',
+        required: ['url'],
+        properties: {
+            url: { type: 'string' },
+            title: { type: 'string' },
+            artists: {
+                anyOf: [
+                    { type: 'array', items: { type: 'string' } },
+                    { type: 'string' }
+                ]
+            },
+            cookies: {
+                anyOf: [
+                    { type: 'array' },
+                    { type: 'string' }
+                ]
+            }
+        }
+    },
+    response: {
+        200: {
+            description: 'Audio stream',
+            type: 'string',
+            format: 'binary'
+        }
+    }
+};
