@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { getFiles } from "../utils/files";
 import { parseFile } from "music-metadata";
-import { sanitizeFilename } from "../utils/string";
+import { sanitizeFilename, normalizeForPairing } from "../utils/string";
 
 const MP3_DIR = path.resolve(process.env.MP3_DOWNLOAD_DIR ?? 'mp3');
 const COVER_DIR = path.resolve(process.env.COVER_DOWNLOAD_DIR ?? 'cover');
@@ -25,10 +25,16 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
         const coverFiles = getFiles(path.join(COVER_DIR, targetCoverSubPath), targetCoverSubPath);
 
         const fileMap = new Map<string, { id: string, audio?: any, cover?: any }>();
-        const PORT = process.env.PORT || 3000;
-        const rawBaseUrl = process.env.BASE_URL || `${request.protocol}://${request.hostname}:${PORT}`;
-        const baseUrl = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
+        const normalizedIndex = new Map<string, string>(); // normalizedKey -> rawId
 
+        const PORT = process.env.PORT || 3000;
+        let baseUrl = process.env.BASE_URL;
+        if (!baseUrl) {
+            baseUrl = `${request.protocol}://${request.hostname}:${PORT}`;
+        }
+        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+
+        // 1. Process Audios
         for (const fileObj of audioFiles) {
             const { name: file, relativePath } = fileObj;
             const fullPath = path.join(MP3_DIR, relativePath);
@@ -41,42 +47,55 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
                     const metadata = await parseFile(fullPath);
                     if (metadata.common.title) {
                         const artists = metadata.common.artist || metadata.common.artists?.join(", ") || "Unknown Artist";
-                        id = sanitizeFilename(`${metadata.common.title}-${artists}`);
+                        // Use RAW metadata for the ID
+                        id = `${metadata.common.title}-${artists}`;
                     }
                 } catch (err) {
                     fastify.log.warn(`Failed to read metadata for ${file}: ${err}`);
                 }
 
-                const mapKey = id;
                 const webPath = `/mp3/${relativePath.replace(/\\/g, '/')}`;
-
-                fileMap.set(mapKey, {
+                const entry = {
                     id,
                     audio: {
                         name: file,
                         path: webPath,
                         url: `${baseUrl}${webPath}`
                     }
-                });
+                };
+
+                fileMap.set(id, entry);
+                normalizedIndex.set(normalizeForPairing(id), id);
+                // Also index by filename without extension for fallback
+                normalizedIndex.set(normalizeForPairing(parsed.name), id);
             }
         }
 
+        // 2. Process Covers
         for (const fileObj of coverFiles) {
             const { name: file, relativePath } = fileObj;
             const parsed = path.parse(relativePath);
-            const id = parsed.name;
+            const fileNameOnly = parsed.name;
             const ext = parsed.ext.toLowerCase();
-            const mapKey = id;
-            const webPath = `/cover/${relativePath.replace(/\\/g, '/')}`;
 
             if ([".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(ext)) {
-                const entry = fileMap.get(mapKey) || { id };
-                entry.cover = {
+                const webPath = `/cover/${relativePath.replace(/\\/g, '/')}`;
+                const cover = {
                     name: file,
                     path: webPath,
                     url: `${baseUrl}${webPath}`
                 };
-                fileMap.set(mapKey, entry);
+
+                // Match by raw ID, or filename, or normalized fuzzy match
+                const matchedRawId = fileMap.has(fileNameOnly) ? fileNameOnly : normalizedIndex.get(normalizeForPairing(fileNameOnly));
+
+                if (matchedRawId) {
+                    const entry = fileMap.get(matchedRawId)!;
+                    entry.cover = cover;
+                } else {
+                    // Create standalone cover entry
+                    fileMap.set(fileNameOnly, { id: fileNameOnly, cover });
+                }
             }
         }
 
@@ -115,7 +134,7 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
 
                     if (audioExtensions.includes(ext)) {
                         let match = false;
-                        if (parsed.name === id) {
+                        if (parsed.name === id || normalizeForPairing(parsed.name) === normalizeForPairing(id)) {
                             match = true;
                         } else {
                             // Smart match via ID3
@@ -123,8 +142,8 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
                                 const metadata = await parseFile(fullPath);
                                 if (metadata.common.title) {
                                     const artists = metadata.common.artist || metadata.common.artists?.join(", ") || "Unknown Artist";
-                                    const metadataId = sanitizeFilename(`${metadata.common.title}-${artists}`);
-                                    if (metadataId === id) {
+                                    const metadataId = `${metadata.common.title}-${artists}`;
+                                    if (metadataId === id || normalizeForPairing(metadataId) === normalizeForPairing(id)) {
                                         match = true;
                                     }
                                 }
@@ -148,8 +167,10 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
             // Try delete Cover
             const targetCoverDir = path.join(COVER_DIR, targetCoverSubPath);
             if (fs.existsSync(targetCoverDir)) {
-                // For covers, we stick to filename-based matching as requested ("title of the png which is always title-artist")
-                const covers = fs.readdirSync(targetCoverDir).filter(f => path.parse(f).name === id);
+                const covers = fs.readdirSync(targetCoverDir).filter(f => {
+                    const name = path.parse(f).name;
+                    return name === id || normalizeForPairing(name) === normalizeForPairing(id);
+                });
                 for (const cover of covers) {
                     const coverPath = path.join(targetCoverDir, cover);
                     try {

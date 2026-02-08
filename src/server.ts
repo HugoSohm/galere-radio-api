@@ -110,7 +110,8 @@ const start = async () => {
         await pRetry(async () => {
             try {
                 await app.listen({ port: PORT, host: "0.0.0.0" });
-                console.log(`🚀 Server running on http://localhost:${PORT}`);
+                const displayUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+                console.log(`🚀 Server running on ${displayUrl}`);
             } catch (err: any) {
                 if (err.code === 'EADDRINUSE') {
                     console.warn(`[Server] Port ${PORT} busy, retrying...`);
