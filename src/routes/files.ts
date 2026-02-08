@@ -2,6 +2,8 @@ import { FastifyInstance, FastifyPluginOptions } from "fastify";
 import fs from "fs";
 import path from "path";
 import { getFiles } from "../utils/files";
+import { parseFile } from "music-metadata";
+import { sanitizeFilename } from "../utils/string";
 
 const MP3_DIR = path.resolve(process.env.MP3_DOWNLOAD_DIR ?? 'mp3');
 const COVER_DIR = path.resolve(process.env.COVER_DOWNLOAD_DIR ?? 'cover');
@@ -29,12 +31,23 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
 
         for (const fileObj of audioFiles) {
             const { name: file, relativePath } = fileObj;
+            const fullPath = path.join(MP3_DIR, relativePath);
             const parsed = path.parse(relativePath);
             const ext = parsed.ext.toLowerCase();
 
             if (audioExtensions.includes(ext)) {
-                const id = parsed.name;
-                const mapKey = id; // Use base filename as key to pair with covers from other folders
+                let id = parsed.name; // Fallback to filename
+                try {
+                    const metadata = await parseFile(fullPath);
+                    if (metadata.common.title) {
+                        const artists = metadata.common.artist || metadata.common.artists?.join(", ") || "Unknown Artist";
+                        id = sanitizeFilename(`${metadata.common.title}-${artists}`);
+                    }
+                } catch (err) {
+                    fastify.log.warn(`Failed to read metadata for ${file}: ${err}`);
+                }
+
+                const mapKey = id;
                 const webPath = `/mp3/${relativePath.replace(/\\/g, '/')}`;
 
                 fileMap.set(mapKey, {
@@ -90,21 +103,44 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
             const targetAudioSubPath = audioSubPath || subPath || "";
             const targetCoverSubPath = coverSubPath || subPath || "";
 
-            // Try delete Audio files (any supported extension)
+            // Try delete Audio files
             const audioExtensions = [".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac"];
             const targetAudioDir = path.join(MP3_DIR, targetAudioSubPath);
             if (fs.existsSync(targetAudioDir)) {
-                const files = fs.readdirSync(targetAudioDir).filter(f => {
-                    const parsed = path.parse(f);
-                    return parsed.name === id && audioExtensions.includes(parsed.ext.toLowerCase());
-                });
+                const files = fs.readdirSync(targetAudioDir);
                 for (const file of files) {
-                    const filePath = path.join(targetAudioDir, file);
-                    try {
-                        fs.unlinkSync(filePath);
-                        deleted.push(targetAudioSubPath ? path.join(targetAudioSubPath, file) : file);
-                    } catch (err) {
-                        errors.push(`Failed to delete audio: ${file}`);
+                    const fullPath = path.join(targetAudioDir, file);
+                    const parsed = path.parse(file);
+                    const ext = parsed.ext.toLowerCase();
+
+                    if (audioExtensions.includes(ext)) {
+                        let match = false;
+                        if (parsed.name === id) {
+                            match = true;
+                        } else {
+                            // Smart match via ID3
+                            try {
+                                const metadata = await parseFile(fullPath);
+                                if (metadata.common.title) {
+                                    const artists = metadata.common.artist || metadata.common.artists?.join(", ") || "Unknown Artist";
+                                    const metadataId = sanitizeFilename(`${metadata.common.title}-${artists}`);
+                                    if (metadataId === id) {
+                                        match = true;
+                                    }
+                                }
+                            } catch (e) {
+                                // Ignore metadata read errors during delete scan
+                            }
+                        }
+
+                        if (match) {
+                            try {
+                                fs.unlinkSync(fullPath);
+                                deleted.push(targetAudioSubPath ? path.join(targetAudioSubPath, file) : file);
+                            } catch (err) {
+                                errors.push(`Failed to delete audio: ${file}`);
+                            }
+                        }
                     }
                 }
             }
@@ -112,6 +148,7 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
             // Try delete Cover
             const targetCoverDir = path.join(COVER_DIR, targetCoverSubPath);
             if (fs.existsSync(targetCoverDir)) {
+                // For covers, we stick to filename-based matching as requested ("title of the png which is always title-artist")
                 const covers = fs.readdirSync(targetCoverDir).filter(f => path.parse(f).name === id);
                 for (const cover of covers) {
                     const coverPath = path.join(targetCoverDir, cover);

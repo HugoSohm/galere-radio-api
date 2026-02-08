@@ -180,6 +180,8 @@ Check the status and result of a download.
 
 ### List Files
 Returns a grouped list of audio files and their associated covers. While the downloader saves in MP3, the API supports listing and managing multiple formats (MP3, WAV, M4A, OGG, FLAC, AAC).
+
+**Smart Pairing**: The API uses ID3 tags (Title and Artist) from the audio files to generate a unique `id` (`Title-Artist`). Covers are automatically paired if their filename matches this metadata-based `id`, regardless of the audio filename.
 - **URL**: `/files`
 - **Method**: `GET`
 - **Query Params**:
@@ -211,7 +213,7 @@ Deletes files based on query parameters.
 - **URL**: `/files`
 - **Method**: `DELETE`
 - **Query Params**:
-    - **Paired deletion**: `?id=filename_without_ext&audioSubPath=subdir&coverSubPath=subdir` (Deletes both audio and associated cover across folders)
+    - **Paired deletion**: `?id=Title-Artist&audioSubPath=subdir&coverSubPath=subdir` (Deletes audio file matching the ID3 tags and the cover matching the filename)
     - **Specific deletion**: `?type=audio|mp3|cover&filename=full_filename&subPath=subdir` (Deletes a single file)
     - `audioSubPath`: (Optional) Audio subdirectory.
     - `coverSubPath`: (Optional) Cover subdirectory.
