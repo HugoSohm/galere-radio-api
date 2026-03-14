@@ -14,10 +14,6 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
         const { id, audioSubPath, coverSubPath, subPath, file } = request.body;
 
         const rawId = id?.value || (typeof id === 'string' ? id : undefined);
-        console.log(id?.value, typeof id, (typeof id === 'string' ? id : undefined));
-        console.log(typeof id)
-        console.log((typeof id === 'string' ? id : undefined))
-        console.log(rawId)
         const targetAudioSubPath = audioSubPath?.value || (typeof audioSubPath === 'string' ? audioSubPath : (subPath?.value || (typeof subPath === 'string' ? subPath : "")));
         const targetCoverSubPath = coverSubPath?.value || (typeof coverSubPath === 'string' ? coverSubPath : (subPath?.value || (typeof subPath === 'string' ? subPath : "")));
 

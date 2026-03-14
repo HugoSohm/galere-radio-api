@@ -23,7 +23,8 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/scripts ./scripts
 
-# Setup yt-dlp via postinstall/setup script
+# Trigger cache invalidation only if a new release is available on GitHub
+ADD https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest /tmp/ytdlp-release.json
 RUN node scripts/setup-ytdlp.js
 
 # Create download directories (defaults)

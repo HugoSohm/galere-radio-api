@@ -1,39 +1,51 @@
+const jobProperties = {
+    id: { type: 'string' },
+    status: { type: 'string' },
+    progress: { type: 'number' },
+    result: {
+        type: 'object',
+        nullable: true,
+        properties: {
+            audioPath: { type: 'string' },
+            coverPath: { type: 'string' },
+            metadata: {
+                type: 'object',
+                properties: {
+                    title: { type: 'string' },
+                    artists: { type: 'array', items: { type: 'string' } },
+                    coverUrl: { type: 'string' },
+                    source: { type: 'string' }
+                }
+            }
+        }
+    },
+    error: { type: 'string', nullable: true }
+};
+
 export const jobStatusSchema = {
-    description: 'Get status of a download job',
+    description: 'Get status of a download job or list all jobs',
     tags: ['jobs'],
     querystring: {
         type: 'object',
-        required: ['id'],
         properties: {
-            id: { type: 'string', description: 'The job ID' }
+            id: { type: 'string', description: 'The job ID (optional)' }
         }
     },
     response: {
         200: {
-            type: 'object',
-            properties: {
-                id: { type: 'string' },
-                status: { type: 'string' },
-                progress: { type: 'number' },
-                result: {
+            oneOf: [
+                {
                     type: 'object',
-                    nullable: true,
-                    properties: {
-                        audioPath: { type: 'string' },
-                        coverPath: { type: 'string' },
-                        metadata: {
-                            type: 'object',
-                            properties: {
-                                title: { type: 'string' },
-                                artists: { type: 'array', items: { type: 'string' } },
-                                coverUrl: { type: 'string' },
-                                source: { type: 'string' }
-                            }
-                        }
-                    }
+                    properties: jobProperties
                 },
-                error: { type: 'string', nullable: true }
-            }
+                {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: jobProperties
+                    }
+                }
+            ]
         }
     }
 };
