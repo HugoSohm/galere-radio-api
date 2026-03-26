@@ -8,7 +8,7 @@ export default async function downloadRoutes(app: FastifyInstance) {
     app.post("/download", {
         schema: downloadSchema
     }, async (request: FastifyRequest<{ Body: DownloadBody }>, reply: FastifyReply) => {
-        const { tracks, cookies: cookiesRaw, audioSubPath, coverSubPath } = request.body;
+        const { tracks, cookies: cookiesRaw } = request.body;
 
         try {
             let cookies: any[] | undefined;
@@ -36,8 +36,7 @@ export default async function downloadRoutes(app: FastifyInstance) {
                         title: track.title,
                         artists: parsedArtists && parsedArtists.length > 0 ? parsedArtists : undefined
                     },
-                    audioSubPath,
-                    coverSubPath
+                    playlists: track.playlists
                 });
                 results.push({ url: track.url, jobId: job.id });
             }

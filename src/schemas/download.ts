@@ -1,4 +1,5 @@
 export const infoSchema = {
+    summary: 'Get media metadata',
     description: 'Get information about a media URL or playlist',
     tags: ['download'],
     body: {
@@ -33,6 +34,7 @@ export const infoSchema = {
 };
 
 export const downloadSchema = {
+    summary: 'Download bulk media',
     description: 'Queue media downloads in bulk',
     tags: ['download'],
     body: {
@@ -52,6 +54,10 @@ export const downloadSchema = {
                                 { type: 'array', items: { type: 'string' } },
                                 { type: 'string' }
                             ]
+                        },
+                        playlists: {
+                            type: 'array',
+                            items: { type: 'string' }
                         }
                     }
                 }
@@ -61,9 +67,7 @@ export const downloadSchema = {
                     { type: 'array' },
                     { type: 'string' }
                 ]
-            },
-            audioSubPath: { type: 'string' },
-            coverSubPath: { type: 'string' }
+            }
         }
     },
     response: {
@@ -88,6 +92,7 @@ export const downloadSchema = {
     }
 };
 export const streamSchema = {
+    summary: 'Stream media playback',
     description: 'Stream a media download directly to the browser',
     tags: ['download'],
     body: {

@@ -1,87 +1,82 @@
 import { FastifyInstance, FastifyPluginOptions } from "fastify";
 import fs from "fs";
 import path from "path";
-import { getFiles } from "../utils/files";
+import { getFilesRecursive } from "../utils/files";
 import { parseFile } from "music-metadata";
 import { sanitizeFilename, normalizeForPairing } from "../utils/string";
-import { coverUploadSchema } from "../schemas/files";
+import { coverUploadSchema, playlistSyncSchema, getFilesSchema, deleteFileSchema } from "../schemas/files";
 
 const MP3_DIR = path.resolve(process.env.MP3_DOWNLOAD_DIR ?? 'mp3');
 const COVER_DIR = path.resolve(process.env.COVER_DOWNLOAD_DIR ?? 'cover');
 
 export default async function filesRoutes(fastify: FastifyInstance, options: FastifyPluginOptions) {
-    fastify.post<{ Body: { id: any, audioSubPath?: any, coverSubPath?: any, subPath?: any, file: any } }>("/files/cover", { schema: coverUploadSchema }, async (request, reply) => {
-        const { id, audioSubPath, coverSubPath, subPath, file } = request.body;
+    fastify.post<{ Body: { id: any, file: any } }>("/files/cover", { schema: coverUploadSchema }, async (request, reply) => {
+        const { id, file } = request.body;
 
         const rawId = id?.value || (typeof id === 'string' ? id : undefined);
-        const targetAudioSubPath = audioSubPath?.value || (typeof audioSubPath === 'string' ? audioSubPath : (subPath?.value || (typeof subPath === 'string' ? subPath : "")));
-        const targetCoverSubPath = coverSubPath?.value || (typeof coverSubPath === 'string' ? coverSubPath : (subPath?.value || (typeof subPath === 'string' ? subPath : "")));
+        const targetPlaylists = new Set<string>();
 
         if (!rawId) return reply.status(400).send({ error: "Missing ID" });
         if (!file || !file.filename) return reply.status(400).send({ error: "Missing file" });
 
-        // Security check
         const checkValue = (val?: string) => val && (val.includes("..") || val.startsWith("/") || val.startsWith("\\"));
-        if (checkValue(rawId) || checkValue(targetAudioSubPath) || checkValue(targetCoverSubPath)) {
-            return reply.status(400).send({ error: "Invalid ID or subPath" });
+        if (checkValue(rawId)) {
+            return reply.status(400).send({ error: "Invalid ID" });
         }
 
         const audioExtensions = [".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac"];
-        const targetAudioDir = path.join(MP3_DIR, targetAudioSubPath);
+        const audioFiles = getFilesRecursive(MP3_DIR);
 
-        if (!fs.existsSync(targetAudioDir)) {
-            return reply.status(404).send({ error: "Audio directory not found" });
-        }
+        // Find all playlists where this audio exists
+        for (const fileObj of audioFiles) {
+            const fullPath = path.join(MP3_DIR, fileObj.relativePath);
+            const parsed = path.parse(fileObj.relativePath);
+            const ext = parsed.ext.toLowerCase();
 
-        // Verify audio file exists
-        const files = fs.readdirSync(targetAudioDir);
-        let audioMatch = false;
-        for (const f of files) {
-            const parsed = path.parse(f);
-            if (audioExtensions.includes(parsed.ext.toLowerCase())) {
+            if (audioExtensions.includes(ext)) {
+                let audioMatch = false;
                 if (parsed.name === rawId || normalizeForPairing(parsed.name) === normalizeForPairing(rawId)) {
                     audioMatch = true;
-                    break;
                 }
-                // Try ID3 match
-                try {
-                    const metadata = await parseFile(path.join(targetAudioDir, f));
-                    if (metadata.common.title) {
-                        const artists = metadata.common.artist || metadata.common.artists?.join(", ") || "Unknown Artist";
-                        const metadataId = `${metadata.common.title}-${artists}`;
-                        if (metadataId === rawId || normalizeForPairing(metadataId) === normalizeForPairing(rawId)) {
-                            audioMatch = true;
-                            break;
-                        }
-                    }
-                } catch (e) { }
+
+                if (audioMatch) {
+                    targetPlaylists.add(fileObj.playlist === 'root' ? '' : fileObj.playlist);
+                }
             }
         }
 
-        if (!audioMatch) {
-            return reply.status(404).send({ error: "No matching audio file found for this ID" });
-        }
-
-        const targetCoverDir = path.join(COVER_DIR, targetCoverSubPath);
-        if (!fs.existsSync(targetCoverDir)) {
-            fs.mkdirSync(targetCoverDir, { recursive: true });
-        }
-
-        // Remove existing covers for this ID (different extensions)
-        const currentCovers = fs.readdirSync(targetCoverDir).filter(f => {
-            const name = path.parse(f).name;
-            return name === rawId || normalizeForPairing(name) === normalizeForPairing(rawId);
-        });
-        for (const c of currentCovers) {
-            try { fs.unlinkSync(path.join(targetCoverDir, c)); } catch (e) { }
+        if (targetPlaylists.size === 0) {
+            return reply.status(404).send({ error: "No matching audio file found for this ID anywhere" });
         }
 
         const ext = path.parse(file.filename).ext;
         const newFilename = `${sanitizeFilename(rawId)}${ext}`;
-        const savePath = path.join(targetCoverDir, newFilename);
-
         const data = await file.toBuffer();
-        fs.writeFileSync(savePath, data);
+
+        let firstWebPath = "";
+
+        for (const playlist of targetPlaylists) {
+            const targetCoverDir = path.join(COVER_DIR, playlist);
+            if (!fs.existsSync(targetCoverDir)) {
+                fs.mkdirSync(targetCoverDir, { recursive: true });
+            }
+
+            // Remove existing covers for this ID (different extensions)
+            const currentCovers = fs.readdirSync(targetCoverDir).filter(f => {
+                const name = path.parse(f).name;
+                return name === rawId || normalizeForPairing(name) === normalizeForPairing(rawId);
+            });
+            for (const c of currentCovers) {
+                try { fs.unlinkSync(path.join(targetCoverDir, c)); } catch (e) { }
+            }
+
+            const savePath = path.join(targetCoverDir, newFilename);
+            fs.writeFileSync(savePath, data);
+
+            if (!firstWebPath) {
+                firstWebPath = `/cover/${playlist ? playlist + '/' : ''}${newFilename}`;
+            }
+        }
 
         const PORT = process.env.PORT || 3000;
         let baseUrl = process.env.BASE_URL;
@@ -90,32 +85,109 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
         }
         if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
 
-        const webPath = `/cover/${targetCoverSubPath ? targetCoverSubPath + '/' : ''}${newFilename}`;
-
         return {
             success: true,
             id: rawId,
-            path: webPath,
-            url: `${baseUrl}${webPath}`
+            path: firstWebPath,
+            url: `${baseUrl}${firstWebPath}`
         };
     });
 
-    fastify.get<{ Querystring: { subPath?: string, audioSubPath?: string, coverSubPath?: string } }>("/files", async (request, reply) => {
-        const { subPath, audioSubPath, coverSubPath } = request.query;
+    fastify.put<{ Body: { id: string, playlists: string[] } }>("/files/playlists", { schema: playlistSyncSchema }, async (request, reply) => {
+        const { id, playlists } = request.body;
 
-        const checkValue = (val?: string) => val && (val.includes("..") || val.startsWith("/") || val.startsWith("\\"));
-        if (checkValue(subPath) || checkValue(audioSubPath) || checkValue(coverSubPath)) {
-            return reply.status(400).send({ error: "Invalid subPath" });
+        // Find existing audio sources to copy from
+        const audioFiles = getFilesRecursive(MP3_DIR);
+        let audioSource: string | null = null;
+        let coverSource: string | null = null;
+        const currentPlaylists = new Set<string>();
+
+        // 1. Locate the audio source globally
+        for (const fileObj of audioFiles) {
+            const fullPath = path.join(MP3_DIR, fileObj.relativePath);
+            const parsed = path.parse(fileObj.relativePath);
+            const ext = parsed.ext.toLowerCase();
+
+            if ([".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac"].includes(ext)) {
+                let match = false;
+                if (parsed.name === id || normalizeForPairing(parsed.name) === normalizeForPairing(id)) {
+                    match = true;
+                }
+
+                if (match) {
+                    if (!audioSource) audioSource = fullPath;
+                    currentPlaylists.add(fileObj.playlist === 'root' ? '' : fileObj.playlist);
+                }
+            }
         }
 
-        const targetAudioSubPath = audioSubPath || subPath || "";
-        const targetCoverSubPath = coverSubPath || subPath || "";
+        if (!audioSource) {
+            return reply.status(404).send({ error: "No audio file found with this ID to synchronize" });
+        }
+
+        const audioParsed = path.parse(audioSource);
+        const audioFilename = audioParsed.base;
+
+        // 2. Locate the cover source globally
+        const coverFiles = getFilesRecursive(COVER_DIR);
+        for (const fileObj of coverFiles) {
+            const parsed = path.parse(fileObj.relativePath);
+            if (parsed.name === id || normalizeForPairing(parsed.name) === normalizeForPairing(id)) {
+                if (!coverSource) coverSource = path.join(COVER_DIR, fileObj.relativePath);
+                break;
+            }
+        }
+
+        const coverFilename = coverSource ? path.parse(coverSource).base : null;
+
+        const targetPlaylists = new Set(playlists.map(p => p.trim()).filter(Boolean));
+
+        // 3. Add to target playlists that don't have it (DO THIS FIRST BEFORE DELETING THE SOURCE)
+        for (const p of targetPlaylists) {
+            if (!currentPlaylists.has(p)) {
+                // Audio
+                const targetMp3Dir = path.join(MP3_DIR, p);
+                if (!fs.existsSync(targetMp3Dir)) fs.mkdirSync(targetMp3Dir, { recursive: true });
+                fs.copyFileSync(audioSource, path.join(targetMp3Dir, audioFilename));
+
+                // Cover
+                if (coverSource && coverFilename) {
+                    const targetCoverDir = path.join(COVER_DIR, p);
+                    if (!fs.existsSync(targetCoverDir)) fs.mkdirSync(targetCoverDir, { recursive: true });
+                    fs.copyFileSync(coverSource, path.join(targetCoverDir, coverFilename));
+                }
+            }
+        }
+
+        // 4. Delete from playlists not in target (NOW SAFE TO DELETE)
+        for (const p of currentPlaylists) {
+            if (!targetPlaylists.has(p)) {
+                const audioToRemove = path.join(MP3_DIR, p, audioFilename);
+                try { if (fs.existsSync(audioToRemove)) fs.unlinkSync(audioToRemove); } catch (e) { }
+
+                if (coverFilename) {
+                    const coverToRemove = path.join(COVER_DIR, p, coverFilename);
+                    try { if (fs.existsSync(coverToRemove)) fs.unlinkSync(coverToRemove); } catch (e) { }
+                }
+            }
+        }
+
+        return { success: true, message: `Successfully synchronized '${id}' across ${targetPlaylists.size} playlists` };
+    });
+
+    fastify.get<{ Querystring: { playlist?: string } }>("/files", { schema: getFilesSchema }, async (request, reply) => {
+        const queryPlaylist = request.query.playlist;
+
+        const checkValue = (val?: string) => val && (val.includes("..") || val.startsWith("/") || val.startsWith("\\"));
+        if (checkValue(queryPlaylist)) {
+            return reply.status(400).send({ error: "Invalid playlist" });
+        }
 
         const audioExtensions = [".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac"];
-        const audioFiles = getFiles(path.join(MP3_DIR, targetAudioSubPath), targetAudioSubPath);
-        const coverFiles = getFiles(path.join(COVER_DIR, targetCoverSubPath), targetCoverSubPath);
+        const audioFiles = getFilesRecursive(MP3_DIR);
+        const coverFiles = getFilesRecursive(COVER_DIR);
 
-        const fileMap = new Map<string, { id: string, audio?: any, cover?: any }>();
+        const fileMap = new Map<string, { id: string, playlists: Set<string>, audioUrl?: string, coverUrl?: string }>();
         const normalizedIndex = new Map<string, string>(); // normalizedKey -> rawId
 
         const PORT = process.env.PORT || 3000;
@@ -127,148 +199,139 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
 
         // 1. Process Audios
         for (const fileObj of audioFiles) {
-            const { name: file, relativePath } = fileObj;
+            const { name: file, relativePath, playlist: playlistFolder } = fileObj;
             const fullPath = path.join(MP3_DIR, relativePath);
             const parsed = path.parse(relativePath);
             const ext = parsed.ext.toLowerCase();
+            const playlistName = playlistFolder === 'root' ? '' : playlistFolder;
 
             if (audioExtensions.includes(ext)) {
-                let id = parsed.name; // Fallback to filename
-                try {
-                    const metadata = await parseFile(fullPath);
-                    if (metadata.common.title) {
-                        const artists = metadata.common.artist || metadata.common.artists?.join(", ") || "Unknown Artist";
-                        // Use RAW metadata for the ID
-                        id = `${metadata.common.title}-${artists}`;
-                    }
-                } catch (err) {
-                    fastify.log.warn(`Failed to read metadata for ${file}: ${err}`);
-                }
+                let id = parsed.name; // Use filename directly
 
                 const webPath = `/mp3/${relativePath.replace(/\\/g, '/')}`;
-                const entry = {
-                    id,
-                    audio: {
-                        name: file,
-                        path: webPath,
-                        url: `${baseUrl}${webPath}`
-                    }
-                };
 
-                fileMap.set(id, entry);
-                normalizedIndex.set(normalizeForPairing(id), id);
-                // Also index by filename without extension for fallback
-                normalizedIndex.set(normalizeForPairing(parsed.name), id);
+                if (!fileMap.has(id)) {
+                    fileMap.set(id, {
+                        id,
+                        playlists: new Set(),
+                        audioUrl: `${baseUrl}${webPath}`
+                    });
+                    normalizedIndex.set(normalizeForPairing(id), id);
+                    normalizedIndex.set(normalizeForPairing(parsed.name), id);
+                }
+
+                if (playlistName) {
+                    fileMap.get(id)!.playlists.add(playlistName);
+                }
             }
         }
 
         // 2. Process Covers
         for (const fileObj of coverFiles) {
-            const { name: file, relativePath } = fileObj;
+            const { name: file, relativePath, playlist: playlistFolder } = fileObj;
             const parsed = path.parse(relativePath);
             const fileNameOnly = parsed.name;
             const ext = parsed.ext.toLowerCase();
+            const playlistName = playlistFolder === 'root' ? '' : playlistFolder;
 
             if ([".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(ext)) {
-                const webPath = `/cover/${relativePath.replace(/\\/g, '/')}`;
-                const cover = {
-                    name: file,
-                    path: webPath,
-                    url: `${baseUrl}${webPath}`
-                };
-
-                // Match by raw ID, or filename, or normalized fuzzy match
+                // Determine ID match
                 const matchedRawId = fileMap.has(fileNameOnly) ? fileNameOnly : normalizedIndex.get(normalizeForPairing(fileNameOnly));
 
+                // If cover exists, attach it to the first found or explicitly
                 if (matchedRawId) {
                     const entry = fileMap.get(matchedRawId)!;
-                    entry.cover = cover;
+                    // We just overwrite the cover data with the last one found since they map to the same conceptual track
+                    if (!entry.coverUrl) {
+                        const webPath = `/cover/${relativePath.replace(/\\/g, '/')}`;
+                        entry.coverUrl = `${baseUrl}${webPath}`;
+                    }
+                    if (playlistName) {
+                        entry.playlists.add(playlistName);
+                    }
                 } else {
-                    // Create standalone cover entry
-                    fileMap.set(fileNameOnly, { id: fileNameOnly, cover });
+                    // Orphaned cover
+                    const webPath = `/cover/${relativePath.replace(/\\/g, '/')}`;
+                    fileMap.set(fileNameOnly, {
+                        id: fileNameOnly,
+                        playlists: new Set(playlistName ? [playlistName] : []),
+                        coverUrl: `${baseUrl}${webPath}`
+                    });
                 }
             }
         }
 
-        return Array.from(fileMap.values());
+        let results = Array.from(fileMap.values()).map(entry => ({
+            ...entry,
+            playlists: Array.from(entry.playlists)
+        }));
+
+        if (queryPlaylist) {
+            results = results.filter(r => r.playlists.includes(queryPlaylist));
+        }
+
+        return results;
     });
 
     // DELETE /files - Delete based on query parameters
-    fastify.delete<{ Querystring: { id?: string, type?: string, filename?: string, subPath?: string, audioSubPath?: string, coverSubPath?: string } }>("/files", async (request, reply) => {
-        const { id, type, filename, subPath, audioSubPath, coverSubPath } = request.query;
+    fastify.delete<{ Querystring: { id?: string, type?: string, filename?: string, playlist?: string } }>("/files", { schema: deleteFileSchema }, async (request, reply) => {
+        const { id, type, filename } = request.query;
+        const queryPlaylist = request.query.playlist;
 
         // Security check for id, filename, or subPaths
         const targetName = id || filename;
         const checkValue = (val?: string) => val && (val.includes("..") || val.startsWith("/") || val.startsWith("\\"));
 
-        if (checkValue(targetName) || checkValue(subPath) || checkValue(audioSubPath) || checkValue(coverSubPath)) {
-            return reply.status(400).send({ error: "Invalid ID, filename or subPath" });
+        if (checkValue(targetName) || checkValue(queryPlaylist)) {
+            return reply.status(400).send({ error: "Invalid ID, filename or playlist" });
         }
 
-        // Case 1: Delete paired files (id + optional subPath)
+        // Case 1: Delete paired files globally across all playlists (or filtered)
         if (id) {
             const deleted = [];
             const errors = [];
-
-            const targetAudioSubPath = audioSubPath || subPath || "";
-            const targetCoverSubPath = coverSubPath || subPath || "";
-
-            // Try delete Audio files
             const audioExtensions = [".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac"];
-            const targetAudioDir = path.join(MP3_DIR, targetAudioSubPath);
-            if (fs.existsSync(targetAudioDir)) {
-                const files = fs.readdirSync(targetAudioDir);
-                for (const file of files) {
-                    const fullPath = path.join(targetAudioDir, file);
-                    const parsed = path.parse(file);
-                    const ext = parsed.ext.toLowerCase();
 
-                    if (audioExtensions.includes(ext)) {
-                        let match = false;
-                        if (parsed.name === id || normalizeForPairing(parsed.name) === normalizeForPairing(id)) {
-                            match = true;
-                        } else {
-                            // Smart match via ID3
-                            try {
-                                const metadata = await parseFile(fullPath);
-                                if (metadata.common.title) {
-                                    const artists = metadata.common.artist || metadata.common.artists?.join(", ") || "Unknown Artist";
-                                    const metadataId = `${metadata.common.title}-${artists}`;
-                                    if (metadataId === id || normalizeForPairing(metadataId) === normalizeForPairing(id)) {
-                                        match = true;
-                                    }
-                                }
-                            } catch (e) {
-                                // Ignore metadata read errors during delete scan
-                            }
-                        }
+            // Delete Audios
+            const audioFiles = getFilesRecursive(MP3_DIR);
+            for (const fileObj of audioFiles) {
+                if (queryPlaylist && queryPlaylist !== 'root' && fileObj.playlist !== queryPlaylist) continue;
 
-                        if (match) {
-                            try {
-                                fs.unlinkSync(fullPath);
-                                deleted.push(targetAudioSubPath ? path.join(targetAudioSubPath, file) : file);
-                            } catch (err) {
-                                errors.push(`Failed to delete audio: ${file}`);
-                            }
+                const fullPath = path.join(MP3_DIR, fileObj.relativePath);
+                const parsed = path.parse(fileObj.relativePath);
+                const ext = parsed.ext.toLowerCase();
+
+                if (audioExtensions.includes(ext)) {
+                    let match = false;
+                    if (parsed.name === id || normalizeForPairing(parsed.name) === normalizeForPairing(id)) {
+                        match = true;
+                    }
+
+                    if (match) {
+                        try {
+                            fs.unlinkSync(fullPath);
+                            deleted.push(`/mp3/${fileObj.relativePath.replace(/\\/g, '/')}`);
+                        } catch (err) {
+                            errors.push(`Failed to delete audio: ${fileObj.relativePath}`);
                         }
                     }
                 }
             }
 
-            // Try delete Cover
-            const targetCoverDir = path.join(COVER_DIR, targetCoverSubPath);
-            if (fs.existsSync(targetCoverDir)) {
-                const covers = fs.readdirSync(targetCoverDir).filter(f => {
-                    const name = path.parse(f).name;
-                    return name === id || normalizeForPairing(name) === normalizeForPairing(id);
-                });
-                for (const cover of covers) {
-                    const coverPath = path.join(targetCoverDir, cover);
+            // Delete Covers
+            const coverFiles = getFilesRecursive(COVER_DIR);
+            for (const fileObj of coverFiles) {
+                if (queryPlaylist && queryPlaylist !== 'root' && fileObj.playlist !== queryPlaylist) continue;
+
+                const fullPath = path.join(COVER_DIR, fileObj.relativePath);
+                const parsed = path.parse(fileObj.relativePath);
+
+                if (parsed.name === id || normalizeForPairing(parsed.name) === normalizeForPairing(id)) {
                     try {
-                        fs.unlinkSync(coverPath);
-                        deleted.push(targetCoverSubPath ? path.join(targetCoverSubPath, cover) : cover);
+                        fs.unlinkSync(fullPath);
+                        deleted.push(`/cover/${fileObj.relativePath.replace(/\\/g, '/')}`);
                     } catch (err) {
-                        errors.push(`Failed to delete cover: ${cover}`);
+                        errors.push(`Failed to delete cover: ${fileObj.relativePath}`);
                     }
                 }
             }
@@ -280,17 +343,17 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
             return { success: true, deleted, errors: errors.length > 0 ? errors : undefined };
         }
 
-        // Case 2: Delete specific file (type + filename + optional subPath)
+        // Case 2: Delete specific raw file (type + filename + optional subPath)
         if (type && filename) {
             let baseDir: string;
             let targetSub: string;
 
             if (type === "mp3" || type === "audio") {
                 baseDir = MP3_DIR;
-                targetSub = audioSubPath || subPath || "";
+                targetSub = queryPlaylist || "";
             } else if (type === "cover") {
                 baseDir = COVER_DIR;
-                targetSub = coverSubPath || subPath || "";
+                targetSub = queryPlaylist || "";
             } else {
                 return reply.status(400).send({ error: "Invalid type. Must be 'audio', 'mp3', or 'cover'" });
             }

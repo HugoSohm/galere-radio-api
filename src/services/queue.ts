@@ -14,13 +14,13 @@ export const downloadQueue = new Queue('downloads', { connection });
  */
 export const setupWorker = () => {
     const worker = new Worker('downloads', async (job: Job) => {
-        const { url, cookies, overrides, audioSubPath, coverSubPath } = job.data;
+        const { url, cookies, overrides, playlists } = job.data;
 
         await job.updateProgress(10);
         console.log(`[Queue] Processing job ${job.id} for ${url}`);
 
         try {
-            const result = await downloadMedia(url, cookies, overrides, audioSubPath, coverSubPath);
+            const result = await downloadMedia(url, cookies, overrides, playlists);
             await job.updateProgress(100);
             return result;
         } catch (error: any) {

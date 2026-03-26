@@ -6,8 +6,8 @@ const jobProperties = {
         type: 'object',
         nullable: true,
         properties: {
-            audioPath: { type: 'string' },
-            coverPath: { type: 'string' },
+            audioUrl: { type: 'string' },
+            coverUrl: { type: 'string' },
             metadata: {
                 type: 'object',
                 properties: {
@@ -23,6 +23,7 @@ const jobProperties = {
 };
 
 export const jobStatusSchema = {
+    summary: 'Check download jobs',
     description: 'Get status of a download job or list all jobs',
     tags: ['jobs'],
     querystring: {

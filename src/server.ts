@@ -8,7 +8,7 @@ import jobRoutes from "./routes/jobs";
 import filesRoutes from "./routes/files";
 import { setupWorker, connection } from './services/queue';
 import formbody from '@fastify/formbody';
-import multipart from '@fastify/multipart';
+import multipart, { ajvFilePlugin } from '@fastify/multipart';
 import { normalizationHook } from './hooks/normalization';
 import { errorHandler } from './handlers/errorHandler';
 import { authHook } from './handlers/auth';
@@ -21,23 +21,28 @@ import pRetry, { AbortError } from 'p-retry';
 const app = Fastify({
     logger: true,
     forceCloseConnections: true,
+    ajv: {
+        plugins: [ajvFilePlugin as any]
+    }
 });
 
 app.register(formbody);
 app.register(multipart, { attachFieldsToBody: true });
 
 app.register(swagger, {
-    swagger: {
+    openapi: {
         info: {
             title: 'Galere Radio API',
             description: 'API for retrieving information and downloading media with metadata support.',
             version: '1.1.0'
         },
-        securityDefinitions: {
-            apiKey: {
-                type: 'apiKey',
-                name: 'x-api-key',
-                in: 'header'
+        components: {
+            securitySchemes: {
+                apiKey: {
+                    type: 'apiKey',
+                    name: 'x-api-key',
+                    in: 'header'
+                }
             }
         },
         security: [{ apiKey: [] }]

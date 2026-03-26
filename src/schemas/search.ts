@@ -1,4 +1,5 @@
 export const searchSchema = {
+    summary: 'Search tracks',
     description: 'Search for tracks on YouTube',
     tags: ['search'],
     body: {

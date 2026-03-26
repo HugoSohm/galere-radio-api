@@ -11,20 +11,8 @@ export const coverUploadSchema = {
                 type: 'string',
                 description: 'The ID of the audio file (Title-Artist)'
             },
-            audioSubPath: {
-                type: 'string',
-                description: 'Optional subdirectory for the audio file'
-            },
-            coverSubPath: {
-                type: 'string',
-                description: 'Optional subdirectory for the cover file'
-            },
-            subPath: {
-                type: 'string',
-                description: 'Fallback subdirectory if audioSubPath or coverSubPath are not provided'
-            },
             file: {
-                type: 'object',
+                isFile: true,
                 description: 'The image file to upload'
             }
         }
@@ -49,6 +37,92 @@ export const coverUploadSchema = {
             properties: {
                 error: { type: 'string' }
             }
+        }
+    }
+};
+
+export const playlistSyncSchema = {
+    summary: 'Update playlists for a file',
+    description: 'Adds or removes a file from playlists to match the provided array.',
+    tags: ['files'],
+    body: {
+        type: 'object',
+        required: ['id', 'playlists'],
+        properties: {
+            id: { type: 'string' },
+            playlists: {
+                type: 'array',
+                items: { type: 'string' }
+            }
+        }
+    },
+    response: {
+        200: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean' },
+                message: { type: 'string' }
+            }
+        }
+    }
+};
+
+export const getFilesSchema = {
+    summary: 'List and filter files',
+    description: 'Retrieves all files globally. Optionally filter by a specific playlist.',
+    tags: ['files'],
+    querystring: {
+        type: 'object',
+        properties: {
+            playlist: { type: 'string', description: 'Filter tracks mapped to this specific playlist name' }
+        }
+    },
+    response: {
+        200: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    id: { type: 'string' },
+                    playlists: { type: 'array', items: { type: 'string' } },
+                    audioUrl: { type: 'string' },
+                    coverUrl: { type: 'string' }
+                }
+            }
+        }
+    }
+};
+
+export const deleteFileSchema = {
+    summary: 'Delete files globally or locally',
+    description: 'Deletes a track by its ID comprehensively across all playlists, or manually target an isolated file.',
+    tags: ['files'],
+    querystring: {
+        type: 'object',
+        properties: {
+            id: { type: 'string', description: 'Track ID to universally delete' },
+            type: { type: 'string', description: 'Target explicit file kind (audio or cover)' },
+            filename: { type: 'string', description: 'Target explicit raw filename' },
+            playlist: { type: 'string', description: 'Scope the deletion to a specific playlist (optional)' }
+        }
+    },
+    response: {
+        200: {
+            type: 'object',
+            properties: {
+                success: { type: 'boolean' },
+                message: { type: 'string' },
+                deleted: { type: 'array', items: { type: 'string' } },
+                errors: { type: 'array', items: { type: 'string' } }
+            }
+        },
+        400: {
+            type: 'object',
+            properties: { error: { type: 'string' } }
+        },
+        404: {
+            type: 'object',
+            properties: { error: { type: 'string' } }
         }
     }
 };

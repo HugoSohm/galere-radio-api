@@ -211,12 +211,16 @@ export const getTrackInfo = async (url: string, cookies?: any[]): Promise<TrackM
 /**
  * Downloads media and covers and processes them with FFmpeg.
  */
-export const downloadMedia = async (url: string, cookies?: any[], overrides?: { title?: string, artists?: string[] }, audioSubPath?: string, coverSubPath?: string): Promise<DownloadResult> => {
-    const targetMp3Dir = audioSubPath ? path.join(MP3_DIR, audioSubPath) : MP3_DIR;
-    const targetCoverDir = coverSubPath ? path.join(COVER_DIR, coverSubPath) : COVER_DIR;
+export const downloadMedia = async (url: string, cookies?: any[], overrides?: { title?: string, artists?: string[] }, playlists?: string[]): Promise<DownloadResult> => {
+    const targetMp3Dirs = Array.from(new Set(playlists && playlists.length > 0 ? playlists.map(p => path.join(MP3_DIR, p)) : [MP3_DIR]));
+    const targetCoverDirs = Array.from(new Set(playlists && playlists.length > 0 ? playlists.map(p => path.join(COVER_DIR, p)) : [COVER_DIR]));
 
-    if (!fs.existsSync(targetMp3Dir)) fs.mkdirSync(targetMp3Dir, { recursive: true });
-    if (!fs.existsSync(targetCoverDir)) fs.mkdirSync(targetCoverDir, { recursive: true });
+    for (const dir of targetMp3Dirs) {
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    }
+    for (const dir of targetCoverDirs) {
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    }
 
     const metadataResults = await getTrackInfo(url, cookies);
     if (metadataResults.length === 0) throw new Error('No metadata found for URL');
@@ -227,12 +231,16 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
         if (overrides.artists && overrides.artists.length > 0) metadata.artists = overrides.artists;
     }
 
-    const artistString = metadata.artists.join(', ');
-    const filenameBase = sanitizeFilename(`${metadata.title}-${artistString}`);
-    const audioPath = path.join(targetMp3Dir, `${filenameBase}.mp3`);
-    const coverPath = path.join(targetCoverDir, `${filenameBase}.jpg`);
+    const artistString = sanitizeFilename(metadata.artists.join(', '));
+    const titleString = sanitizeFilename(metadata.title);
+    const filenameBase = sanitizeFilename(`${titleString}-${artistString}`);
+    
+    const primaryMp3Dir = targetMp3Dirs[0];
+    const primaryCoverDir = targetCoverDirs[0];
+    const audioPath = path.join(primaryMp3Dir, `${filenameBase}.mp3`);
+    const coverPath = path.join(primaryCoverDir, `${filenameBase}.jpg`);
 
-    const tempBasePath = path.join(targetMp3Dir, `temp-${Date.now()}`);
+    const tempBasePath = path.join(primaryMp3Dir, `temp-${Date.now()}`);
     let downloadUrl = url;
 
     if ([SourceType.SPOTIFY, SourceType.DEEZER, SourceType.APPLE_MUSIC].includes(metadata.source)) {
@@ -262,15 +270,15 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
                 await execFileAsync(YTDLP_PATH, [...ytdlpArgs, downloadUrl], { timeout: 300000 });
             }, { retries: 2 });
 
-            const files = fs.readdirSync(targetMp3Dir).filter(f => f.startsWith(`temp-`) && f.includes(tempBasePath.split(path.sep).pop()!));
+            const files = fs.readdirSync(primaryMp3Dir).filter(f => f.startsWith(`temp-`) && f.includes(tempBasePath.split(path.sep).pop()!));
             if (files.length === 0) throw new Error('Downloaded audio file not found');
-            const tempAudioPath = path.join(targetMp3Dir, files[0]);
+            const tempAudioPath = path.join(primaryMp3Dir, files[0]);
 
             await new Promise<void>((resolve, reject) => {
                 ffmpeg(tempAudioPath)
                     .audioBitrate(320)
                     .save(audioPath)
-                    .outputOptions('-metadata', `title=${metadata.title}`, '-metadata', `artist=${artistString}`)
+                    .outputOptions('-metadata', `title=${titleString}`, '-metadata', `artist=${artistString}`)
                     .on('end', () => resolve())
                     .on('error', (err) => reject(err));
             });
@@ -285,7 +293,7 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
             ffmpeg(audioStream)
                 .audioBitrate(320)
                 .save(audioPath)
-                .outputOptions('-metadata', `title=${metadata.title}`, '-metadata', `artist=${artistString}`)
+                .outputOptions('-metadata', `title=${titleString}`, '-metadata', `artist=${artistString}`)
                 .on('end', () => resolve())
                 .on('error', (err) => reject(err));
         });
@@ -299,12 +307,26 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
         }
     }
 
+    for (let i = 1; i < targetMp3Dirs.length; i++) {
+        const destAudioPath = path.join(targetMp3Dirs[i], `${filenameBase}.mp3`);
+        fs.copyFileSync(audioPath, destAudioPath);
+    }
+    
+    if (metadata.coverUrl && fs.existsSync(coverPath)) {
+        for (let i = 1; i < targetCoverDirs.length; i++) {
+            const destCoverPath = path.join(targetCoverDirs[i], `${filenameBase}.jpg`);
+            fs.copyFileSync(coverPath, destCoverPath);
+        }
+    }
+
     const relativeAudioPath = path.relative(MP3_DIR, audioPath).replace(/\\/g, '/');
     const relativeCoverPath = path.relative(COVER_DIR, coverPath).replace(/\\/g, '/');
 
+    const baseUrl = process.env.BASE_URL?.replace(/\/$/, '') || '';
+
     return {
-        audioPath: `/mp3/${relativeAudioPath}`,
-        coverPath: `/cover/${relativeCoverPath}`,
+        audioUrl: `${baseUrl}/mp3/${relativeAudioPath}`,
+        coverUrl: `${baseUrl}/cover/${relativeCoverPath}`,
         metadata
     };
 };
@@ -322,8 +344,9 @@ export const getMediaStream = async (url: string, cookies?: any[], overrides?: {
         if (overrides.artists && overrides.artists.length > 0) metadata.artists = overrides.artists;
     }
 
-    const artistString = metadata.artists.join(', ');
-    const filename = sanitizeFilename(`${metadata.title}-${artistString}`) + '.mp3';
+    const artistString = sanitizeFilename(metadata.artists.join(', '));
+    const titleString = sanitizeFilename(metadata.title);
+    const filename = sanitizeFilename(`${titleString}-${artistString}`) + '.mp3';
 
     let inputStream: Readable;
     let downloadUrl = url;
@@ -367,7 +390,7 @@ export const getMediaStream = async (url: string, cookies?: any[], overrides?: {
         .audioBitrate(320)
         .format('mp3')
         .outputOptions(
-            '-metadata', `title=${metadata.title}`,
+            '-metadata', `title=${titleString}`,
             '-metadata', `artist=${artistString}`,
             '-id3v2_version', '3',
             '-write_id3v1', '1'

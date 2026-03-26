@@ -13,6 +13,7 @@ export interface DownloadTrack {
     url: string;
     title?: string;
     artists?: string[] | string;
+    playlists?: string[];
 }
 
 /**
@@ -21,8 +22,6 @@ export interface DownloadTrack {
 export interface DownloadBody {
     tracks: DownloadTrack[];
     cookies?: any[] | string;
-    audioSubPath?: string;
-    coverSubPath?: string;
 }
 
 /**
