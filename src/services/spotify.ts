@@ -1,4 +1,5 @@
 import { SourceType, TrackMetadata } from '../types/metadata';
+import logger from '../utils/logger';
 
 /**
  * Retrieves a Spotify access token using client credentials.
@@ -78,7 +79,7 @@ export const searchSpotifyTrack = async (artist: string, title: string): Promise
             source: SourceType.SPOTIFY
         };
     } catch (error) {
-        console.error(`[Spotify Search] Failed: ${error}`);
+        logger.error({ module: 'Spotify Search', err: error }, `Search failed`);
         return null;
     }
 };

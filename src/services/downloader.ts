@@ -17,6 +17,7 @@ import { downloadImage } from './image';
 import { getSpotifyTrackInfo, searchSpotifyTrack } from './spotify';
 import { getDeezerTrackInfo } from './deezer';
 import { executeYtDlp, YTDLP_PATH, FFMPEG_STATIC_PATH } from './yt-dlp';
+import logger from '../utils/logger';
 
 const execFileAsync = promisify(execFile);
 
@@ -36,7 +37,7 @@ if (!fs.existsSync(COVER_DIR)) fs.mkdirSync(COVER_DIR, { recursive: true });
 export const searchTracks = async (artist?: string, title?: string, limit: number = 5, cookies?: any[]): Promise<TrackMetadata[]> => {
     const query = [artist, title].filter(Boolean).join(' ');
     const searchUrl = `ytsearch${limit}:${query}`;
-    console.log(`[Search] Searching for: ${query}`);
+    logger.info({ module: 'Search' }, `Searching for: ${query}`);
     const args = ['--flat-playlist', '--dump-json'];
 
     let cookieFile: string | null = null;
@@ -80,7 +81,7 @@ export const searchTracks = async (artist?: string, title?: string, limit: numbe
  * Extracts playlist information using yt-dlp.
  */
 export const getPlaylistInfo = async (url: string, cookies?: any[]): Promise<TrackMetadata[]> => {
-    console.log(`[Playlist] Extracting info for: ${url}`);
+    logger.info({ module: 'Playlist' }, `Extracting info for: ${url}`);
     const args = ['--flat-playlist', '--dump-json'];
 
     let cookieFile: string | null = null;
@@ -141,7 +142,7 @@ export const getTrackInfo = async (url: string, cookies?: any[]): Promise<TrackM
 
             const spotifyInfo = await searchSpotifyTrack(parsedArtists[0], parsedTitle);
             if (spotifyInfo) {
-                console.log(`[Spotify] Found match for YouTube track: ${spotifyInfo.artists.join(', ')} - ${spotifyInfo.title}`);
+                logger.info({ module: 'Spotify' }, `Found match for YouTube track: ${spotifyInfo.artists.join(', ')} - ${spotifyInfo.title}`);
                 return [{ ...spotifyInfo, source: SourceType.YOUTUBE, url }];
             }
 
@@ -173,7 +174,7 @@ export const getTrackInfo = async (url: string, cookies?: any[]): Promise<TrackM
                     const response = await fetch(url, { redirect: 'follow' });
                     targetUrl = response.url;
                 } catch (e) {
-                    console.warn(`[Deezer] Redirect failed: ${e}`);
+                    logger.warn({ module: 'Deezer', err: e }, `Redirect failed`);
                 }
             }
 
@@ -245,7 +246,7 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
 
     if ([SourceType.SPOTIFY, SourceType.DEEZER, SourceType.APPLE_MUSIC].includes(metadata.source)) {
         const query = `${metadata.artists.join(' ')} - ${metadata.title}`;
-        console.log(`[Search] YouTube search for: ${query}`);
+        logger.info({ module: 'Search' }, `YouTube search for: ${query}`);
         downloadUrl = `ytsearch1:${query}`;
     }
 
@@ -303,7 +304,7 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
         try {
             await pRetry(() => downloadImage(metadata.coverUrl, coverPath), { retries: 2 });
         } catch (e) {
-            console.error("Failed to download cover:", e);
+            logger.error({ err: e }, "Failed to download cover");
         }
     }
 
@@ -396,7 +397,7 @@ export const getMediaStream = async (url: string, cookies?: any[], overrides?: {
             '-write_id3v1', '1'
         )
         .on('error', (err) => {
-            console.error('[FFmpeg Stream Error]', err);
+            logger.error({ err }, '[FFmpeg Stream Error]');
             outStream.destroy(err);
         })
         .pipe(outStream);

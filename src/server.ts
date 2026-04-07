@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { loggerConfig } from './utils/logger';
 import Fastify from "fastify";
 import healthRoutes from "./routes/health";
 import infoRoutes from "./routes/info";
@@ -18,18 +19,8 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import pRetry, { AbortError } from 'p-retry';
 
-const isProduction = process.env.NODE_ENV === 'production';
-
 const app = Fastify({
-    logger: isProduction ? true : {
-        transport: {
-            target: 'pino-pretty',
-            options: {
-                translateTime: 'HH:MM:ss',
-                ignore: 'pid,hostname',
-            },
-        },
-    },
+    logger: loggerConfig,
     forceCloseConnections: true,
     ajv: {
         plugins: [ajvFilePlugin as any]

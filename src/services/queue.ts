@@ -1,6 +1,7 @@
 import { Queue, Worker, Job } from 'bullmq';
 import IORedis from 'ioredis';
 import { downloadMedia } from './downloader';
+import logger from '../utils/logger';
 
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 export const connection = new IORedis(REDIS_URL, {
@@ -17,24 +18,24 @@ export const setupWorker = () => {
         const { url, cookies, overrides, playlists } = job.data;
 
         await job.updateProgress(10);
-        console.log(`[Queue] Processing job ${job.id} for ${url}`);
+        logger.info({ module: 'Queue', jobId: job.id, url }, `Processing job`);
 
         try {
             const result = await downloadMedia(url, cookies, overrides, playlists);
             await job.updateProgress(100);
             return result;
         } catch (error: any) {
-            console.error(`[Queue] Job ${job.id} failed:`, error);
+            logger.error({ module: 'Queue', jobId: job.id, err: error }, `Job failed`);
             throw error;
         }
     }, { connection, concurrency: 2 });
 
     worker.on('completed', job => {
-        console.log(`[Queue] Job ${job.id} completed!`);
+        logger.info({ module: 'Queue', jobId: job.id }, `Job completed`);
     });
 
     worker.on('failed', (job, err) => {
-        console.error(`[Queue] Job ${job?.id} failed with error: ${err.message}`);
+        logger.error({ module: 'Queue', jobId: job?.id, err }, `Job failed with error: ${err.message}`);
     });
 
     return worker;

@@ -5,6 +5,7 @@ import { execFile } from 'child_process';
 import pRetry from 'p-retry';
 import ffmpegStatic from 'ffmpeg-static';
 import { writeCookiesFile } from '../utils/cookies';
+import logger from '../utils/logger';
 
 const execFileAsync = promisify(execFile);
 
@@ -42,7 +43,7 @@ export const executeYtDlp = async (url: string, cookies?: any[], extraArgs: stri
     }, {
         retries: 3,
         onFailedAttempt: error => {
-            console.log(`Attempt ${error.attemptNumber} failed. There are ${error.retriesLeft} retries left.`);
+            logger.warn({ module: 'yt-dlp', attempt: error.attemptNumber, retriesLeft: error.retriesLeft }, `Command attempt failed`);
         }
     });
 };
