@@ -2,7 +2,7 @@ import { FastifyInstance, FastifyPluginOptions } from "fastify";
 import fs from "fs";
 import path from "path";
 import { getFilesRecursive } from "../utils/files";
-import { getAudioId } from "../utils/metadata";
+import { getAudioInfo } from "../utils/metadata";
 import { sanitizeFilename, normalizeForPairing } from "../utils/string";
 import { coverUploadSchema, playlistSyncSchema, getFilesSchema, deleteFileSchema } from "../schemas/files";
 
@@ -32,7 +32,7 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
             const fullPath = path.join(MP3_DIR, fileObj.relativePath);
             const ext = path.extname(fileObj.relativePath).toLowerCase();
             if (audioExtensions.includes(ext)) {
-                const idFromTags = await getAudioId(fullPath);
+                const { id: idFromTags } = await getAudioInfo(fullPath);
                 if (idFromTags === rawId || normalizeForPairing(idFromTags) === normalizeForPairing(rawId)) {
                     return fileObj.playlist === 'root' ? '' : fileObj.playlist;
                 }
@@ -108,7 +108,7 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
             const fullPath = path.join(MP3_DIR, fileObj.relativePath);
             const ext = path.extname(fileObj.relativePath).toLowerCase();
             if ([".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac"].includes(ext)) {
-                const idFromTags = await getAudioId(fullPath);
+                const { id: idFromTags } = await getAudioInfo(fullPath);
                 if (idFromTags === id || normalizeForPairing(idFromTags) === normalizeForPairing(id)) {
                     return { fullPath, playlist: fileObj.playlist === 'root' ? '' : fileObj.playlist };
                 }
@@ -189,7 +189,14 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
         const audioFiles = getFilesRecursive(MP3_DIR);
         const coverFiles = getFilesRecursive(COVER_DIR);
 
-        const fileMap = new Map<string, { id: string, playlists: Set<string>, audioUrl?: string, coverUrl?: string }>();
+        const fileMap = new Map<string, { 
+            id: string, 
+            playlists: Set<string>, 
+            audioUrl?: string, 
+            coverUrl?: string,
+            title?: string,
+            artists?: string[]
+        }>();
         const normalizedIndex = new Map<string, string>(); // normalizedKey -> rawId
 
         const PORT = process.env.PORT || 3000;
@@ -208,19 +215,21 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
             const playlistName = playlistFolder === 'root' ? '' : playlistFolder;
 
             if (audioExtensions.includes(ext)) {
-                const audioId = await getAudioId(fullPath);
+                const info = await getAudioInfo(fullPath);
                 const webPath = `/mp3/${relativePath.replace(/\\/g, '/')}`;
-                return { id: audioId, playlistName, webPath, originalName: parsed.name };
+                return { id: info.id, title: info.title, artists: info.artists, playlistName, webPath, originalName: parsed.name };
             }
             return null;
         }));
 
         for (const res of audioResults) {
             if (res) {
-                const { id, playlistName, webPath, originalName } = res;
+                const { id, title, artists, playlistName, webPath, originalName } = res;
                 if (!fileMap.has(id)) {
                     fileMap.set(id, {
                         id,
+                        title,
+                        artists,
                         playlists: new Set(),
                         audioUrl: `${baseUrl}${webPath}`
                     });
@@ -312,7 +321,7 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
                 const ext = path.extname(fileObj.relativePath).toLowerCase();
 
                 if (audioExtensions.includes(ext)) {
-                    const idFromTags = await getAudioId(fullPath);
+                    const { id: idFromTags } = await getAudioInfo(fullPath);
                     if (idFromTags === id || normalizeForPairing(idFromTags) === normalizeForPairing(id)) {
                         return { fullPath, relativePath: fileObj.relativePath };
                     }

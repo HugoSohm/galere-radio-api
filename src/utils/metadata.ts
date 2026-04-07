@@ -39,25 +39,35 @@ export const parseArtistsTitle = (fullTitle: string, uploaderName: string): { ti
 };
 
 /**
- * Gets the audio ID from ID3 tags (Title-Artist) or falls back to filename.
+ * Gets full audio info from ID3 tags (id, title, artists).
  */
-export const getAudioId = async (filePath: string): Promise<string> => {
+export interface AudioInfo {
+    id: string;
+    title: string;
+    artists: string[];
+}
+
+export const getAudioInfo = async (filePath: string): Promise<AudioInfo> => {
     try {
         const metadata = await parseFile(filePath);
         const { title, artists, artist } = metadata.common;
-        
-        // If 'artists' array exists, join them for a complete artist string
-        const artistValue = (artists && artists.length > 0) ? artists.join(', ') : artist;
 
-        if (title && artistValue) {
-            return `${title}-${artistValue}`;
+        const finalTitle = title || path.parse(filePath).name;
+        const finalArtists = (artists && artists.length > 0) ? artists : (artist ? [artist] : []);
+        const artistsStr = finalArtists.join(', ');
+
+        let id = path.parse(filePath).name;
+        if (title && artistsStr) {
+            id = `${title}-${artistsStr}`;
         } else if (title) {
-            return title;
-        } else if (artistValue) {
-            return artistValue;
+            id = title;
+        } else if (artistsStr) {
+            id = artistsStr;
         }
+
+        return { id, title: finalTitle, artists: finalArtists };
     } catch (error) {
-        // Fallback to filename if parsing fails or tags are missing
+        const name = path.parse(filePath).name;
+        return { id: name, title: name, artists: [] };
     }
-    return path.parse(filePath).name;
 };
