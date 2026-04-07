@@ -84,6 +84,8 @@ export const getFilesSchema = {
                 type: 'object',
                 properties: {
                     id: { type: 'string' },
+                    title: { type: 'string' },
+                    artists: { type: 'array', items: { type: 'string' } },
                     playlists: { type: 'array', items: { type: 'string' } },
                     audioUrl: { type: 'string' },
                     coverUrl: { type: 'string' }
