@@ -32,3 +32,39 @@ export const searchSchema = {
         }
     }
 };
+
+export const searchCoverSchema = {
+    summary: 'Search cover for ID',
+    description: 'Searches for a cover image across Spotify, SoundCloud, and YouTube for a given track ID.',
+    tags: ['search'],
+    querystring: {
+        type: 'object',
+        properties: {
+            artists: { type: 'array', items: { type: 'string' }, description: 'Artists names' },
+            title: { type: 'string', description: 'Track title' },
+            id: { type: 'string', description: 'Optional track ID' }
+        },
+        anyOf: [
+            { required: ['id'] },
+            { required: ['artists', 'title'] }
+        ]
+    },
+    response: {
+        200: {
+            type: 'object',
+            properties: {
+                id: { type: 'string' },
+                title: { type: 'string' },
+                artists: { type: 'array', items: { type: 'string' } },
+                coverUrl: { type: 'string' },
+                source: { type: 'string' }
+            }
+        },
+        404: {
+            type: 'object',
+            properties: {
+                error: { type: 'string' }
+            }
+        }
+    }
+};

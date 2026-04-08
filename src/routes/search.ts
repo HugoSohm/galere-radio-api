@@ -2,7 +2,14 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { searchTracks } from "../services/downloader";
 import { getBodyFieldValue } from "../utils/request";
 import { SourceType } from "../types/metadata";
-import { searchSchema } from "../schemas/search";
+import { searchSchema, searchCoverSchema } from "../schemas/search";
+import { searchCoverAcrossSources } from "../services/cover";
+import { getFilesRecursive } from "../utils/files";
+import { getAudioInfo } from "../utils/metadata";
+import { normalizeForPairing } from "../utils/string";
+import path from "path";
+
+const MP3_DIR = path.resolve(process.env.MP3_DOWNLOAD_DIR ?? 'mp3');
 
 export default async function searchRoutes(app: FastifyInstance) {
     app.post("/search", {
@@ -37,6 +44,68 @@ export default async function searchRoutes(app: FastifyInstance) {
         } catch (error: any) {
             request.log.error(error);
             return reply.status(500).send({ error: "Search failed", details: error.message });
+        }
+    });
+
+    app.get("/search/cover", {
+        schema: searchCoverSchema
+    }, async (request: FastifyRequest, reply: FastifyReply) => {
+        const { id, artists: queryArtists, title: queryTitle } = request.query as { id?: string, artists?: string[], title?: string };
+
+        let finalTitle = queryTitle;
+        let trackArtists = queryArtists || [];
+
+        // Resolve ID to Track Info only if artist or title is missing
+        if ((trackArtists.length === 0 || !finalTitle) && id) {
+            const audioFiles = getFilesRecursive(MP3_DIR);
+            const audioExtensions = [".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac"];
+            const normalizedTargetId = normalizeForPairing(id);
+
+            for (const fileObj of audioFiles) {
+                const ext = path.extname(fileObj.relativePath).toLowerCase();
+                if (audioExtensions.includes(ext)) {
+                    const fullPath = path.join(MP3_DIR, fileObj.relativePath);
+                    const info = await getAudioInfo(fullPath);
+                    if (info.id === id || normalizeForPairing(info.id) === normalizedTargetId) {
+                        finalTitle = info.title;
+                        trackArtists = info.artists;
+                        break;
+                    }
+                }
+            }
+
+            // Fallback: Parse ID if not found in local files
+            if (trackArtists.length === 0 || !finalTitle) {
+                const parts = id.split('-');
+                if (parts.length >= 2) {
+                    finalTitle = parts[0].trim();
+                    trackArtists = parts.slice(1).join('-').split(',').map(s => s.trim());
+                }
+            }
+        }
+
+        if (trackArtists.length === 0 || !finalTitle) {
+            return reply.status(400).send({ error: "Missing required parameters (artists and title OR id)" });
+        }
+
+        // Use the primary artist for searching
+        const mainArtist = trackArtists[0];
+
+        try {
+            const result = await searchCoverAcrossSources(mainArtist, finalTitle);
+            if (!result) {
+                return reply.status(404).send({ error: "No cover found across any source" });
+            }
+
+            return reply.send({
+                id,
+                title: finalTitle,
+                artists: trackArtists,
+                ...result
+            });
+        } catch (error: any) {
+            request.log.error(error);
+            return reply.status(500).send({ error: "Cover search failed", details: error.message });
         }
     });
 }
