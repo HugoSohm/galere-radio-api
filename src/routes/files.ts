@@ -36,15 +36,22 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
             if (audioExtensions.includes(ext)) {
                 const { id: idFromTags } = await getAudioInfo(fullPath);
                 if (idFromTags === rawId || normalizeForPairing(idFromTags) === normalizeForPairing(rawId)) {
-                    return fileObj.playlist === 'root' ? '' : fileObj.playlist;
+                    return { 
+                        playlist: fileObj.playlist === 'root' ? '' : fileObj.playlist,
+                        originalName: path.parse(fileObj.name).name
+                    };
                 }
             }
             return null;
         }));
 
-        for (const playlist of audioResults) {
-            if (playlist !== null) {
-                targetPlaylists.add(playlist);
+        const originalNames = new Set<string>();
+        originalNames.add(rawId);
+
+        for (const res of audioResults) {
+            if (res !== null) {
+                targetPlaylists.add(res.playlist);
+                originalNames.add(res.originalName);
             }
         }
 
@@ -92,10 +99,12 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
                 fs.mkdirSync(targetCoverDir, { recursive: true });
             }
 
-            // Remove existing covers for this ID (different extensions)
+            // Remove existing covers for this ID or associated filenames
             const currentCovers = fs.readdirSync(targetCoverDir).filter(f => {
                 const name = path.parse(f).name;
-                return name === rawId || normalizeForPairing(name) === normalizeForPairing(rawId);
+                return Array.from(originalNames).some(on => 
+                    name === on || normalizeForPairing(name) === normalizeForPairing(on)
+                );
             });
             for (const c of currentCovers) {
                 try { fs.unlinkSync(path.join(targetCoverDir, c)); } catch (e) { }
@@ -291,11 +300,15 @@ export default async function filesRoutes(fastify: FastifyInstance, options: Fas
                 // If cover exists, attach it to the first found or explicitly
                 if (matchedRawId) {
                     const entry = fileMap.get(matchedRawId)!;
-                    // We just overwrite the cover data with the last one found since they map to the same conceptual track
-                    if (!entry.coverUrl) {
-                        const webPath = `/cover/${relativePath.replace(/\\/g, '/')}`;
-                        entry.coverUrl = `${baseUrl}${webPath}`;
+                    
+                    // We prefer a cover that exactly matches the ID over a filename match
+                    const webPath = `/cover/${relativePath.replace(/\\/g, '/')}`;
+                    const currentUrl = `${baseUrl}${webPath}`;
+
+                    if (!entry.coverUrl || fileNameOnly === matchedRawId) {
+                        entry.coverUrl = currentUrl;
                     }
+
                     if (playlistName) {
                         entry.playlists.add(playlistName);
                     }
