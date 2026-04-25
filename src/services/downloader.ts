@@ -151,20 +151,39 @@ export const getTrackInfo = async (url: string, cookies?: any[]): Promise<TrackM
         }
 
         case SourceType.SOUNDCLOUD: {
+            let targetUrl = url;
+            if (url.includes('on.soundcloud.com')) {
+                try {
+                    const response = await fetch(url, { redirect: 'follow', method: 'HEAD' });
+                    targetUrl = response.url;
+                } catch (e) {
+                    logger.warn({ module: 'SoundCloud', err: e }, `Redirect failed for ${url}`);
+                }
+            }
+
             return await pRetry(async () => {
-                const info = await scdl.getInfo(url);
+                const info = await scdl.getInfo(targetUrl);
                 const { title, artists } = parseArtistsTitle(info.title || "Unknown Title", info.user?.username || "Unknown Artist");
                 let coverUrl = info.artwork_url || info.user?.avatar_url || "";
                 if (coverUrl) coverUrl = coverUrl.replace('-large', '-t500x500');
-                return [{ title, artists, coverUrl, source: SourceType.SOUNDCLOUD, url }];
+                return [{ title, artists, coverUrl, source: SourceType.SOUNDCLOUD, url: targetUrl }];
             }, { retries: 2 });
         }
 
         case SourceType.SPOTIFY: {
-            const trackIdMatch = url.match(/track\/([a-zA-Z0-9]+)/);
+            let targetUrl = url;
+            if (url.includes('spotify.link')) {
+                try {
+                    const response = await fetch(url, { redirect: 'follow', method: 'HEAD' });
+                    targetUrl = response.url;
+                } catch (e) {
+                    logger.warn({ module: 'Spotify', err: e }, `Redirect failed for ${url}`);
+                }
+            }
+            const trackIdMatch = targetUrl.match(/track\/([a-zA-Z0-9]+)/);
             if (!trackIdMatch) throw new Error("Invalid Spotify track URL");
             const info = await getSpotifyTrackInfo(trackIdMatch[1]);
-            return [{ ...info, url }];
+            return [{ ...info, url: targetUrl }];
         }
 
         case SourceType.DEEZER: {
@@ -289,7 +308,7 @@ export const downloadMedia = async (url: string, cookies?: any[], overrides?: { 
             if (cookiesFile && fs.existsSync(cookiesFile)) try { fs.unlinkSync(cookiesFile); } catch (e) { }
         }
     } else {
-        const audioStream = await scdl.download(url);
+        const audioStream = await scdl.download(metadata.url || url);
         await new Promise<void>((resolve, reject) => {
             ffmpeg(audioStream)
                 .audioBitrate(320)
@@ -382,7 +401,7 @@ export const getMediaStream = async (url: string, cookies?: any[], overrides?: {
             }
         });
     } else {
-        inputStream = await scdl.download(url);
+        inputStream = await scdl.download(metadata.url || url);
     }
 
     const outStream = new PassThrough();

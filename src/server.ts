@@ -7,6 +7,7 @@ import downloadRoutes from "./routes/download";
 import searchRoutes from "./routes/search";
 import jobRoutes from "./routes/jobs";
 import filesRoutes from "./routes/files";
+import playlistsRoutes from "./routes/playlists";
 import { setupWorker, connection, downloadQueue, workerConnection } from './services/queue';
 import formbody from '@fastify/formbody';
 import multipart, { ajvFilePlugin } from '@fastify/multipart';
@@ -88,6 +89,7 @@ app.register(downloadRoutes);
 app.register(searchRoutes);
 app.register(jobRoutes);
 app.register(filesRoutes);
+app.register(playlistsRoutes);
 
 app.setErrorHandler(errorHandler);
 

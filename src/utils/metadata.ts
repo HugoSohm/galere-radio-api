@@ -7,9 +7,9 @@ import { SourceType } from '../types/metadata';
  */
 export const getSourceFromUrl = (url: string): SourceType | null => {
     if (url.includes('youtube.com') || url.includes('youtu.be')) return SourceType.YOUTUBE;
-    if (url.includes('soundcloud.com')) return SourceType.SOUNDCLOUD;
-    if (url.includes('spotify.com')) return SourceType.SPOTIFY;
-    if (url.includes('deezer.com') || url.includes('deezer.page.link')) return SourceType.DEEZER;
+    if (url.includes('soundcloud.com') || url.includes('on.soundcloud.com')) return SourceType.SOUNDCLOUD;
+    if (url.includes('spotify.com') || url.includes('spotify.link')) return SourceType.SPOTIFY;
+    if (url.includes('deezer.com') || url.includes('deezer.page.link') || url.includes('link.deezer.com')) return SourceType.DEEZER;
     if (url.includes('music.apple.com')) return SourceType.APPLE_MUSIC;
     return null;
 };
